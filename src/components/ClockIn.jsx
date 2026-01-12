@@ -2,14 +2,23 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Clock, Briefcase, User, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const ClockIn = ({ onClockIn }) => {
     const { currentUser, logout } = useAuth();
-    const [name, setName] = useState(currentUser.displayName.split(' ')[0]);
+    const navigate = useNavigate();
+    const [name, setName] = useState(currentUser?.displayName?.split(' ')[0] || '');
     const [goal, setGoal] = useState('');
     const [duration, setDuration] = useState(30);
     const [error, setError] = useState('');
+
+    React.useEffect(() => {
+        if (!currentUser) {
+            navigate('/login');
+        } else if (currentUser.displayName) {
+            setName(currentUser.displayName.split(' ')[0]);
+        }
+    }, [currentUser, navigate]);
 
     const handleSubmit = (e) => {
         e.preventDefault();

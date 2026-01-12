@@ -82,7 +82,7 @@ export const useSimulator = (initialState) => {
                         Current tasks are: ${(tasks.map(t => t.text).join(', '))}.
 
                         Generate a short, 1-sentence message to the employee. 
-                        Address the employee as ${currentUser.name}.
+                        Address the employee as ${initialState.name}.
                         It can be encouraging, pressuring, or just a random check-in.
                         Do not include quotes.
                     `;
