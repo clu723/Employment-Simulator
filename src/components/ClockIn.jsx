@@ -1,16 +1,29 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Clock, Briefcase, User } from 'lucide-react';
+import { Clock, Briefcase, User, LogOut } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { Link } from 'react-router-dom';
 
 const ClockIn = ({ onClockIn }) => {
-    const [name, setName] = useState('');
+    const { currentUser, logout } = useAuth();
+    const [name, setName] = useState(currentUser.displayName.split(' ')[0]);
     const [goal, setGoal] = useState('');
     const [duration, setDuration] = useState(30);
+    const [error, setError] = useState('');
 
     const handleSubmit = (e) => {
         e.preventDefault();
         if (name && goal && duration > 0) {
             onClockIn({ name, goal, duration });
+        }
+    };
+
+    const handleLogout = async () => {
+        setError('');
+        try {
+            await logout();
+        } catch {
+            setError('Failed to log out');
         }
     };
 
@@ -21,14 +34,31 @@ const ClockIn = ({ onClockIn }) => {
                 animate={{ opacity: 1, y: 0 }}
                 className="w-full max-w-md bg-white/10 backdrop-blur-lg rounded-2xl p-8 shadow-2xl border border-white/20"
             >
-                <div className="flex items-center justify-center mb-8">
-                    <div className="p-3 bg-blue-500/20 rounded-full">
-                        <Clock className="w-8 h-8 text-blue-400" />
+                <div className="flex justify-between items-center mb-8">
+                    <div className="flex items-center justify-center">
+                        <div className="p-3 bg-blue-500/20 rounded-full">
+                            <Clock className="w-8 h-8 text-blue-400" />
+                        </div>
+                    </div>
+                    <div>
+                        {currentUser ? (
+                            <div className="flex items-center gap-4">
+                                <span className="text-sm text-gray-300">Welcome {currentUser.displayName.split(' ')[0]}!</span>
+                                <button onClick={handleLogout} className="text-sm text-red-400 hover:text-red-300 flex items-center gap-1">
+                                    <LogOut size={16} /> Logout
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-4">
+                                <Link to="/login" className="text-sm text-blue-400 hover:text-blue-300">Login</Link>
+                            </div>
+                        )}
                     </div>
                 </div>
 
                 <h1 className="text-3xl font-bold text-center mb-2">Employment Simulator</h1>
                 <p className="text-gray-400 text-center mb-8">Clock in to start your shift.</p>
+                {error && <div className="bg-red-500/20 border border-red-500 text-red-100 px-4 py-2 rounded mb-4 text-center text-sm">{error}</div>}
 
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="space-y-2">

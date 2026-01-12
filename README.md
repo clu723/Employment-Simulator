@@ -1,16 +1,65 @@
-# React + Vite
+# Employment Simulator
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Do you want to feel like you're employed in this job market? Introducing Employment Simulator!
 
-Currently, two official plugins are available:
+## 🚀 Key Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **AI Manager**: Context aware LLM "manager" that assigns tasks using Qwen 2.5:3B that I host locally.
+- **Task Management**: Interactive to-do list with difficulty-based scoring (random for now).
+- **Real-time Scoring**: Track your productivity and earn points by completing work.
+- **Authentication**: Secure user login using Firebase Authentication (Google Sign-In).
+- **Persistent Progress**: Scores and user data are stored and synced with Firestore.
 
-## React Compiler
+## 🛠️ Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Frontend**: React 19, Vite, Tailwind CSS (AI generated)
+- **Backend & DB**: Firebase (Auth & Firestore)
+- **AI Integration**: Ollama + Tailscale
 
-## Expanding the ESLint configuration
+## 📋 Getting Started
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### Prerequisites
+
+- Node.js (Latest LTS recommended)
+- A Firebase Project (for Auth and Firestore)
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd EmploymentSimulator
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Set up environment variables:
+   Create a `.env` file in the root directory and add your Firebase credentials (use `.env.example` as a template):
+   ```env
+   VITE_FIREBASE_API_KEY=your_api_key
+   VITE_FIREBASE_AUTH_DOMAIN=your_project_id.firebaseapp.com
+   VITE_FIREBASE_PROJECT_ID=your_project_id
+   VITE_FIREBASE_STORAGE_BUCKET=your_project_id.appspot.com
+   VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
+   VITE_FIREBASE_APP_ID=your_app_id
+   ```
+
+### Running Locally
+
+To start the development server:
+```bash
+npm run dev
+```
+
+The application will be available at `http://localhost:5173`.
+
+### Building for Production
+
+To create a production build:
+```bash
+npm run build
+```
+The build output will be in the `dist` folder.
