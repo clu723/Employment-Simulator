@@ -1,7 +1,7 @@
 {
   "name": "employment-simulator",
   "private": true,
-  "homepage": "https://clu723.github.io/Employment-Simulator",
+  "homepage": "https://clu723.github.io/Employment-Simulator/",
   "version": "0.0.0",
   "type": "module",
   "scripts": {
