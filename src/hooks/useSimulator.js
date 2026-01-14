@@ -10,8 +10,12 @@ const INITIAL_TASKS = [
 export const useSimulator = (initialState) => {
     const [timeLeft, setTimeLeft] = useState(initialState.duration * 60);
     const [score, setScore] = useState(0);
+    const [tasksCompleted, setTasksCompleted] = useState(0);
     const [tasks, setTasks] = useState(INITIAL_TASKS);
-    const [messages, setMessages] = useState([{ text: "Welcome to the team! Let's hit that goal: " + initialState.goal, sender: 'Manager', id: 0 }]);
+    const [messages, setMessages] = useState([{
+        text: `Welcome to the team! Let's hit that goal:
+        ${initialState.goal}!`, sender: 'Manager', id: 0
+    }]);
     const [isActive, setIsActive] = useState(true);
     const [error, setError] = useState(null);
     const isGeneratingRef = useRef(false);
@@ -79,7 +83,7 @@ export const useSimulator = (initialState) => {
                     const prompt = `
                         You are a manager in a workplace simulation.
                         The user's goal is: "${goal}".
-                        Current tasks are: ${(tasks.map(t => t.text).join(', '))}.
+                        Current tasks are: ${(tasks.map(t => t.text).join(', ').slice(-2))}.
 
                         Generate a short, 1-sentence message to the employee. 
                         Address the employee as ${initialState.name}.
@@ -97,7 +101,6 @@ export const useSimulator = (initialState) => {
                     const data = await response.json();
                     const text = data.message.content;
                     addMessage(text);
-                    console.log("Manager message:", text);
                 } catch (error) {
                     console.error("Error generating message:", error);
                     setError(error.message || "Unknown error generating message");
@@ -123,7 +126,7 @@ export const useSimulator = (initialState) => {
                 You are a manager. The user's goal is: "${initialState.goal}".
                 Generate a single, realistic work task that works toward this goal, 
                 builds on top of previous tasks, and is different from the user's previous tasks.
-                The user's previous tasks were: ${(tasks.map(t => t.text).join(', ')).slice(-2)}.
+                The user's previous tasks were: ${(tasks.map(t => t.text).join(', ').slice(-2))}.
                 Return ONLY the task text. NO numbering, NO quotes.
                 Keep it short.
             `;
@@ -145,13 +148,15 @@ export const useSimulator = (initialState) => {
                 completed: false,
                 difficulty: Math.floor(Math.random() * 3) + 1
             }]);
+            addMessage(`Hey ${initialState.name}, for your new task: ${text}`);
 
         } catch (error) {
             console.error("Error generating task:", error);
             setError(error.message || "Unknown error generating task");
             // Fallback
             const newTaskId = Date.now();
-            setTasks((prev) => [...prev, { id: newTaskId, text: "Re", completed: false, difficulty: 1 }]);
+            setTasks((prev) => [...prev, { id: newTaskId, text: "Review previous work", completed: false, difficulty: 1 }]);
+            addMessage(`Hey ${initialState.name}, for your new task: Review previous work`);
         } finally {
             isGeneratingRef.current = false;
         }
@@ -172,15 +177,13 @@ export const useSimulator = (initialState) => {
         const task = tasks.find(t => t.id === taskId);
         if (task && !task.completed) {
             setScore((prev) => prev + (task.difficulty * 100));
-            // Trigger new task generation
+            setTasksCompleted((prev) => prev + 1);
             setTimeout(() => {
                 generateNewTask();
             }, 30000);
         }
 
-        if (tasks.length >= 2) {
-            setTasks((prev) => prev.filter(t => t.id !== taskId));
-        }
+        // setTasks((prev) => prev.filter(t => t.id !== taskId));
     }, [tasks]);
 
     const formatTime = (seconds) => {
@@ -192,6 +195,7 @@ export const useSimulator = (initialState) => {
     return {
         timeLeft,
         score,
+        tasksCompleted,
         tasks,
         messages,
         completeTask,

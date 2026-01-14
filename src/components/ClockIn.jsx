@@ -12,14 +12,6 @@ const ClockIn = ({ onClockIn }) => {
     const [duration, setDuration] = useState(30);
     const [error, setError] = useState('');
 
-    React.useEffect(() => {
-        if (!currentUser) {
-            navigate('/login');
-        } else if (currentUser.displayName) {
-            setName(currentUser.displayName.split(' ')[0]);
-        }
-    }, [currentUser, navigate]);
-
     const handleSubmit = (e) => {
         e.preventDefault();
         if (name && goal && duration > 0) {

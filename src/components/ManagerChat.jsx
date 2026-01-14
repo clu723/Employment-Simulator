@@ -3,15 +3,23 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const ManagerChat = ({ messages }) => {
     const scrollRef = useRef(null);
+    const prevMessagesLength = useRef(messages.length);
 
     useEffect(() => {
+        if (messages.length > prevMessagesLength.current) {
+            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2574/2574-preview.mp3');
+            audio.volume = 0.2;
+            audio.play().catch(e => console.log('Audio playback failed:', e));
+        }
+        prevMessagesLength.current = messages.length;
+
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
     }, [messages]);
 
     return (
-        <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-4 h-[300px] flex flex-col">
+        <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 h-full flex flex-col min-h-[500px]">
             <div className="flex items-center gap-2 mb-4 border-b border-white/10 pb-2">
                 <h2 className="text-lg font-semibold text-white">Manager</h2>
             </div>

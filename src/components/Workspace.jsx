@@ -6,19 +6,19 @@ import ManagerChat from './ManagerChat';
 import TaskList from './TaskList';
 
 const Workspace = ({ sessionData, onEndSession }) => {
-    const { timeLeft, score, tasks, messages, completeTask, formatTime, isActive, setIsActive, error } = useSimulator(sessionData);
+    const { timeLeft, score, tasksCompleted, tasks, messages, completeTask, formatTime, isActive, setIsActive, error } = useSimulator(sessionData);
 
     // End session when time runs out
     React.useEffect(() => {
         if (timeLeft <= 0 && isActive) {
             setIsActive(false);
-            onEndSession({ score, tasksCompleted: tasks.filter(t => t.completed).length });
+            onEndSession({ score, tasksCompleted });
         }
-    }, [timeLeft, isActive, onEndSession, score, tasks, setIsActive]);
+    }, [timeLeft, isActive, onEndSession, score, tasksCompleted, setIsActive]);
 
     const handleClockOut = () => {
         setIsActive(false);
-        onEndSession({ score, tasksCompleted: tasks.filter(t => t.completed).length });
+        onEndSession({ score, tasksCompleted });
     };
 
     return (
@@ -65,7 +65,7 @@ const Workspace = ({ sessionData, onEndSession }) => {
                     Error: {error}
                 </div>
             )}
-            <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="flex-1 grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-6 overflow-hidden">
                 <motion.div
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
