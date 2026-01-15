@@ -47,7 +47,10 @@ export const useSimulator = (initialState) => {
         const timeoutId = setTimeout(async () => {
             try {
                 const docRef = doc(db, "users", currentUser.uid);
-                await setDoc(docRef, { score: score }, { merge: true });
+                await setDoc(docRef, {
+                    score: score,
+                    displayName: currentUser.displayName || 'Anonymous'
+                }, { merge: true });
             } catch (err) {
                 console.error("Error saving score:", err);
             }
@@ -62,10 +65,14 @@ export const useSimulator = (initialState) => {
 
     // Timer Logic
     useEffect(() => {
-        if (!isActive || timeLeft <= 0) return;
+        if (!isActive || timeLeft <= 0) {
+            document.title = "00:00 - Employment Simulator";
+            return;
+        }
 
         const timer = setInterval(() => {
             setTimeLeft((prev) => prev - 1);
+            document.title = `${formatTime(timeLeft)} - Employment Simulator`;
         }, 1000);
 
         return () => clearInterval(timer);

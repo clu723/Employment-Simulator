@@ -5,8 +5,11 @@ import { useSimulator } from '../hooks/useSimulator';
 import ManagerChat from './ManagerChat';
 import TaskList from './TaskList';
 
+import Leaderboard from './Leaderboard';
+
 const Workspace = ({ sessionData, onEndSession }) => {
     const { timeLeft, score, tasksCompleted, tasks, messages, completeTask, formatTime, isActive, setIsActive, error } = useSimulator(sessionData);
+    const [showLeaderboard, setShowLeaderboard] = React.useState(false);
 
     // End session when time runs out
     React.useEffect(() => {
@@ -22,7 +25,20 @@ const Workspace = ({ sessionData, onEndSession }) => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-900 text-white p-6 flex flex-col">
+        <div className="min-h-screen bg-gray-900 text-white p-6 flex flex-col relative">
+            {/* Floating Leaderboard Button */}
+            <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setShowLeaderboard(true)}
+                className="fixed right-6 bottom-6 lg:bottom-1/2 lg:translate-y-1/2 z-40 bg-yellow-500 text-gray-900 p-4 rounded-full shadow-2xl border-4 border-gray-900 hover:bg-yellow-400 transition-colors"
+                title="View Leaderboard"
+            >
+                <Trophy size={24} />
+            </motion.button>
+
+            <Leaderboard isOpen={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
+
             {/* Header */}
             <header className="flex justify-between items-center mb-8 bg-white/5 p-4 rounded-xl border border-white/10">
                 <div className="flex items-center gap-4">

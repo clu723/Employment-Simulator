@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Trophy } from 'lucide-react';
 
 const ManagerChat = ({ messages }) => {
     const scrollRef = useRef(null);
@@ -20,8 +21,10 @@ const ManagerChat = ({ messages }) => {
 
     return (
         <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 h-full flex flex-col min-h-[500px]">
-            <div className="flex items-center gap-2 mb-4 border-b border-white/10 pb-2">
-                <h2 className="text-lg font-semibold text-white">Manager</h2>
+            <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-2">
+                <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-semibold text-white">Manager</h2>
+                </div>
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar" ref={scrollRef}>
