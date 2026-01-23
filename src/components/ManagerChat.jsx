@@ -1,13 +1,14 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy } from 'lucide-react';
+import { Volume2, VolumeX } from 'lucide-react';
 
 const ManagerChat = ({ messages }) => {
     const scrollRef = useRef(null);
     const prevMessagesLength = useRef(messages.length);
+    const [isMuted, setIsMuted] = useState(false);
 
     useEffect(() => {
-        if (messages.length > prevMessagesLength.current) {
+        if (messages.length > prevMessagesLength.current && !isMuted) {
             const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2574/2574-preview.mp3');
             audio.volume = 0.2;
             audio.play().catch(e => console.log('Audio playback failed:', e));
@@ -25,6 +26,13 @@ const ManagerChat = ({ messages }) => {
                 <div className="flex items-center gap-2">
                     <h2 className="text-lg font-semibold text-white">Manager</h2>
                 </div>
+                <button
+                    onClick={() => setIsMuted(!isMuted)}
+                    className="p-2 hover:bg-white/10 rounded-full transition-colors text-gray-400 hover:text-white"
+                    title={isMuted ? "Unmute Notifications" : "Mute Notifications"}
+                >
+                    {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+                </button>
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar" ref={scrollRef}>

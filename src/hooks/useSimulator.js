@@ -94,7 +94,7 @@ export const useSimulator = (initialState) => {
 
                         Generate a short, 1-sentence message to the employee. 
                         Address the employee as ${initialState.name}.
-                        It can be encouraging, pressuring, or just a random check-in.
+                        Be pressuring.
                         Do not include quotes.
                     `;
 
@@ -115,7 +115,7 @@ export const useSimulator = (initialState) => {
                     isGeneratingRef.current = false;
                 }
             }
-        }, 30000);
+        }, 60000);
 
         return () => clearInterval(interval);
     }, [isActive, tasks]);
@@ -134,7 +134,8 @@ export const useSimulator = (initialState) => {
                 Generate a single, realistic work task that works toward this goal, 
                 builds on top of previous tasks, and is different from the user's previous tasks.
                 The user's previous tasks were: ${(tasks.map(t => t.text).join(', ').slice(-2))}.
-                Return ONLY the task text. NO numbering, NO quotes.
+                Return ONLY the task text. NO quotes.
+                Include ONLY a single digit difficulty level from 1-5 at the end of the task.
                 Keep it short.
             `;
 
@@ -146,14 +147,15 @@ export const useSimulator = (initialState) => {
                 })
             });
             const data = await response.json();
-            const text = data.message.content;
+            const text = data.message.content.slice(0, -1);
+            console.log(text);
 
             const newTaskId = Date.now();
             setTasks((prev) => [...prev, {
                 id: newTaskId,
                 text: text,
                 completed: false,
-                difficulty: Math.floor(Math.random() * 3) + 1
+                difficulty: parseInt(text.slice(-1))
             }]);
             addMessage(`Hey ${initialState.name}, for your new task: ${text}`);
 
