@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { db } from "../firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 export default function Login() {
     const { loginWithGoogle } = useAuth();
@@ -13,8 +15,18 @@ export default function Login() {
         try {
             setError("");
             setLoading(true);
-            await loginWithGoogle();
-            navigate("/");
+            const userCredential = await loginWithGoogle();
+            const user = userCredential.user;
+
+            // Check if user has an alias
+            const docRef = doc(db, "users", user.uid);
+            const docSnap = await getDoc(docRef);
+
+            if (docSnap.exists() && docSnap.data().companyAlias) {
+                navigate("/");
+            } else {
+                navigate("/setup-alias");
+            }
         } catch (err) {
             console.error(err);
             setError("Failed to log in with Google");

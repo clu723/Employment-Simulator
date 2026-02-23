@@ -7,7 +7,7 @@ export const useSimulator = (initialState) => {
     const [timeLeft, setTimeLeft] = useState(initialState.duration * 60);
     const [score, setScore] = useState(0);
     const [tasksCompleted, setTasksCompleted] = useState(0);
-    const [tasks, setTasks] = useState();
+    const [tasks, setTasks] = useState([]);
     const [messages, setMessages] = useState([{
         text: `Great to have you on board today!`, sender: 'Manager', id: 0
     }]);
@@ -49,8 +49,7 @@ export const useSimulator = (initialState) => {
                 await setDoc(docRef, {
                     score: score,
                     streak: streak,
-                    lastTaskDate: lastTaskDate,
-                    displayName: currentUser.displayName || 'Anonymous'
+                    lastTaskDate: lastTaskDate
                 }, { merge: true });
             } catch (err) {
                 console.error("Error saving user data:", err);

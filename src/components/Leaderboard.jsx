@@ -77,22 +77,22 @@ const Leaderboard = ({ isOpen, onClose }) => {
                                             animate={{ opacity: 1, x: 0 }}
                                             transition={{ delay: index * 0.05 }}
                                             className={`flex items-center justify-between p-3 rounded-lg border ${index === 0 ? 'bg-yellow-500/10 border-yellow-500/30' :
-                                                    index === 1 ? 'bg-gray-400/10 border-gray-400/30' :
-                                                        index === 2 ? 'bg-orange-500/10 border-orange-500/30' :
-                                                            'bg-white/5 border-white/5'
+                                                index === 1 ? 'bg-gray-400/10 border-gray-400/30' :
+                                                    index === 2 ? 'bg-orange-500/10 border-orange-500/30' :
+                                                        'bg-white/5 border-white/5'
                                                 }`}
                                         >
                                             <div className="flex items-center gap-4">
                                                 <span className={`font-mono font-bold w-6 text-center ${index === 0 ? 'text-yellow-500' :
-                                                        index === 1 ? 'text-gray-300' :
-                                                            index === 2 ? 'text-orange-400' :
-                                                                'text-gray-500'
+                                                    index === 1 ? 'text-gray-300' :
+                                                        index === 2 ? 'text-orange-400' :
+                                                            'text-gray-500'
                                                     }`}>
                                                     #{index + 1}
                                                 </span>
-                                                <span className="text-white font-medium truncate max-w-[150px]">
-                                                    {user.displayName}
-                                                </span>
+                                                <div className="font-bold text-gray-200 truncate max-w-[400px]">
+                                                    {user.companyAlias || 'Anonymous Employee'}
+                                                </div>
                                             </div>
                                             <span className="font-mono text-gray-300">
                                                 {user.score?.toLocaleString()}

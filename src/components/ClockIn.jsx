@@ -1,21 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Clock, Briefcase, User, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
+import { db } from '../firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 const ClockIn = ({ onClockIn }) => {
     const { currentUser, logout } = useAuth();
     const navigate = useNavigate();
-    const [name, setName] = useState(currentUser?.displayName?.split(' ')[0] || '');
     const [goal, setGoal] = useState('');
     const [duration, setDuration] = useState(30);
     const [error, setError] = useState('');
 
+    const derivedName = currentUser?.displayName?.split(' ')[0] || 'Employee';
+
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (name && goal && duration > 0) {
-            onClockIn({ name, goal, duration });
+        if (derivedName && goal && duration > 0) {
+            onClockIn({ name: derivedName, goal, duration });
         }
     };
 
@@ -44,7 +47,7 @@ const ClockIn = ({ onClockIn }) => {
                     <div>
                         {currentUser ? (
                             <div className="flex items-center gap-4">
-                                <span className="text-sm text-gray-300">Welcome {currentUser.displayName.split(' ')[0]}!</span>
+                                <span className="text-sm text-gray-300">Welcome {derivedName}!</span>
                                 <button onClick={handleLogout} className="text-sm text-red-400 hover:text-red-300 flex items-center gap-1">
                                     <LogOut size={16} /> Logout
                                 </button>
@@ -62,20 +65,6 @@ const ClockIn = ({ onClockIn }) => {
                 {error && <div className="bg-red-500/20 border border-red-500 text-red-100 px-4 py-2 rounded mb-4 text-center text-sm">{error}</div>}
 
                 <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                            <User size={16} /> Employee Name
-                        </label>
-                        <input
-                            type="text"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-white placeholder-gray-500"
-                            placeholder="John Doe"
-                            required
-                        />
-                    </div>
-
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
                             <Briefcase size={16} /> Work Goal
