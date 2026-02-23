@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Clock, Trophy, LogOut } from 'lucide-react';
+import { Clock, Trophy, LogOut, Flame, Pause, Play } from 'lucide-react';
 import { useSimulator } from '../hooks/useSimulator';
 import ManagerChat from './ManagerChat';
 import TaskList from './TaskList';
@@ -8,7 +8,7 @@ import TaskList from './TaskList';
 import Leaderboard from './Leaderboard';
 
 const Workspace = ({ sessionData, onEndSession }) => {
-    const { timeLeft, score, tasksCompleted, tasks, messages, completeTask, formatTime, isActive, setIsActive, error } = useSimulator(sessionData);
+    const { timeLeft, score, streak, isPaused, setIsPaused, tasksCompleted, tasks, messages, completeTask, formatTime, isActive, setIsActive, error } = useSimulator(sessionData);
     const [showLeaderboard, setShowLeaderboard] = React.useState(false);
 
     // End session when time runs out
@@ -64,15 +64,39 @@ const Workspace = ({ sessionData, onEndSession }) => {
                             {score.toLocaleString()}
                         </div>
                     </div>
+
+                    {streak > 0 && (
+                        <div className="flex flex-col items-center">
+                            <span className="text-xs text-gray-400 uppercase tracking-wider">Streak</span>
+                            <div className="text-2xl font-mono font-bold text-orange-500 flex items-center gap-2">
+                                <Flame size={20} />
+                                {streak}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
-                <button
-                    onClick={handleClockOut}
-                    className="bg-red-500/10 hover:bg-red-500/20 text-red-400 px-4 py-2 rounded-lg border border-red-500/20 flex items-center gap-2 transition-colors"
-                >
-                    <LogOut size={18} />
-                    Clock Out
-                </button>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => setIsPaused(!isPaused)}
+                        className={`px-4 py-2 rounded-lg border flex items-center gap-2 transition-colors ${isPaused
+                                ? 'bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-500 border-yellow-500/30'
+                                : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
+                            }`}
+                        title={isPaused ? "Resume Simulator" : "Pause Simulator"}
+                    >
+                        {isPaused ? <Play size={18} /> : <Pause size={18} />}
+                        {isPaused ? 'Resume' : 'Pause'}
+                    </button>
+
+                    <button
+                        onClick={handleClockOut}
+                        className="bg-red-500/10 hover:bg-red-500/20 text-red-400 px-4 py-2 rounded-lg border border-red-500/20 flex items-center gap-2 transition-colors"
+                    >
+                        <LogOut size={18} />
+                        Clock Out
+                    </button>
+                </div>
             </header>
 
             {/* Main Content */}

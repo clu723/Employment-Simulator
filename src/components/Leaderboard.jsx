@@ -52,7 +52,7 @@ const Leaderboard = ({ isOpen, onClose }) => {
                                 <div className="p-2 bg-yellow-500/20 rounded-full">
                                     <Trophy className="w-6 h-6 text-yellow-500" />
                                 </div>
-                                <h2 className="text-xl font-bold text-white">Leaderboard</h2>
+                                <h2 className="text-xl font-bold text-white">Company Leaderboard</h2>
                             </div>
                             <button
                                 onClick={onClose}

@@ -3,25 +3,24 @@ import { useAuth } from '../context/AuthContext';
 import { db } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
-const INITIAL_TASKS = [
-    // { id: 1, text: "Check your email", completed: false, difficulty: 1 },
-];
-
 export const useSimulator = (initialState) => {
     const [timeLeft, setTimeLeft] = useState(initialState.duration * 60);
     const [score, setScore] = useState(0);
     const [tasksCompleted, setTasksCompleted] = useState(0);
-    const [tasks, setTasks] = useState(INITIAL_TASKS);
+    const [tasks, setTasks] = useState();
     const [messages, setMessages] = useState([{
         text: `Great to have you on board today!`, sender: 'Manager', id: 0
     }]);
+    const [isPaused, setIsPaused] = useState(false);
+    const [streak, setStreak] = useState(0);
+    const [lastTaskDate, setLastTaskDate] = useState(null);
     const [isActive, setIsActive] = useState(true);
     const [error, setError] = useState(null);
     const isGeneratingRef = useRef(false);
     const stateRef = useRef({ score, timeLeft, goal: initialState.goal });
     const { currentUser } = useAuth();
 
-    // Load score from Firestore on login
+    // Load score and streak from Firestore on login
     useEffect(() => {
         const loadScore = async () => {
             if (currentUser) {
@@ -29,17 +28,18 @@ export const useSimulator = (initialState) => {
                     const docRef = doc(db, "users", currentUser.uid);
                     const docSnap = await getDoc(docRef);
                     if (docSnap.exists()) {
-                        setScore(docSnap.data().score || 0);
+                        const data = docSnap.data();
+                        setScore(data.score || 0);
+                        setStreak(data.streak || 0);
+                        setLastTaskDate(data.lastTaskDate || null);
                     }
                 } catch (err) {
-                    console.error("Error loading score:", err);
+                    console.error("Error loading user data:", err);
                 }
             }
         };
         loadScore();
     }, [currentUser]);
-
-    // Save score to Firestore when it changes
     useEffect(() => {
         if (!currentUser) return;
 
@@ -48,15 +48,17 @@ export const useSimulator = (initialState) => {
                 const docRef = doc(db, "users", currentUser.uid);
                 await setDoc(docRef, {
                     score: score,
+                    streak: streak,
+                    lastTaskDate: lastTaskDate,
                     displayName: currentUser.displayName || 'Anonymous'
                 }, { merge: true });
             } catch (err) {
-                console.error("Error saving score:", err);
+                console.error("Error saving user data:", err);
             }
         }, 1000);
 
         return () => clearTimeout(timeoutId);
-    }, [score, currentUser]);
+    }, [score, streak, lastTaskDate, currentUser]);
 
     useEffect(() => {
         stateRef.current = { score, timeLeft, goal: initialState.goal };
@@ -64,22 +66,24 @@ export const useSimulator = (initialState) => {
 
     // Timer Logic
     useEffect(() => {
-        if (!isActive || timeLeft <= 0) {
-            document.title = "00:00 - Employment Simulator";
+        if (!isActive || timeLeft <= 0 || isPaused) {
+            if (!isPaused) {
+                document.title = timeLeft <= 0 ? "00:00 - Employment Simulator" : "Employment Simulator";
+            }
             return;
         }
 
         const timer = setInterval(() => {
             setTimeLeft((prev) => prev - 1);
-            document.title = `${formatTime(timeLeft)} - Employment Simulator`;
+            document.title = `${formatTime(timeLeft)} - Simulator`;
         }, 1000);
 
         return () => clearInterval(timer);
-    }, [isActive, timeLeft]);
+    }, [isActive, timeLeft, isPaused]);
 
     // Manager "Check-in" Logic (Randomly triggered)
     useEffect(() => {
-        if (!isActive) return;
+        if (!isActive || isPaused) return;
 
         const interval = setInterval(async () => {
             if (Math.random() > 0.6 && !isGeneratingRef.current) {
@@ -117,7 +121,7 @@ export const useSimulator = (initialState) => {
         }, 60000);
 
         return () => clearInterval(interval);
-    }, [isActive, tasks]);
+    }, [isActive, isPaused, tasks]);
 
     const addMessage = (text) => {
         setMessages((prev) => [...prev, { text, sender: 'Manager', id: Date.now() }]);
@@ -192,13 +196,31 @@ export const useSimulator = (initialState) => {
         if (task && !task.completed) {
             setScore((prev) => prev + (task.difficulty * 100));
             setTasksCompleted((prev) => prev + 1);
+
+            // Streak Logic
+            const today = new Date();
+            const todayStr = today.toDateString();
+
+            if (lastTaskDate !== todayStr) {
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
+                const yesterdayStr = yesterday.toDateString();
+
+                if (lastTaskDate === yesterdayStr) {
+                    setStreak((prev) => prev + 1);
+                } else {
+                    setStreak(1);
+                }
+                setLastTaskDate(todayStr);
+            }
+
             setTimeout(() => {
                 generateNewTask();
             }, 30000);
         }
 
         // setTasks((prev) => prev.filter(t => t.id !== taskId));
-    }, [tasks]);
+    }, [tasks, lastTaskDate]);
 
     const formatTime = (seconds) => {
         const mins = Math.floor(seconds / 60);
@@ -209,6 +231,9 @@ export const useSimulator = (initialState) => {
     return {
         timeLeft,
         score,
+        streak,
+        isPaused,
+        setIsPaused,
         tasksCompleted,
         tasks,
         messages,
