@@ -32,7 +32,7 @@ const TaskList = ({ tasks, onComplete }) => {
                                 <div className="flex-1">
                                     <p className="text-gray-200 text-sm">{task.text}</p>
                                     <div className="flex gap-1 mt-1">
-                                        {[...Array(task.difficulty)].map((_, i) => (
+                                        {[...Array(Math.max(0, Math.floor(task.difficulty || 0)))].map((_, i) => (
                                             <div key={i} className="w-1.5 h-1.5 rounded-full bg-yellow-500/50" />
                                         ))}
                                     </div>

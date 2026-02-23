@@ -13,8 +13,7 @@ export const useSimulator = (initialState) => {
     const [tasksCompleted, setTasksCompleted] = useState(0);
     const [tasks, setTasks] = useState(INITIAL_TASKS);
     const [messages, setMessages] = useState([{
-        text: `Welcome to the team! Let's hit that goal:
-        ${initialState.goal}!`, sender: 'Manager', id: 0
+        text: `Great to have you on board today!`, sender: 'Manager', id: 0
     }]);
     const [isActive, setIsActive] = useState(true);
     const [error, setError] = useState(null);
@@ -90,8 +89,8 @@ export const useSimulator = (initialState) => {
                     const prompt = `
                         You are a manager in a workplace simulation.
                         The user's goal is: "${goal}".
-                        Current tasks are: ${(tasks.map(t => t.text).join(', ').slice(-2))}.
-
+                        Current tasks are: ${(tasks.map(t => t.text).join(', ').slice(-3))}.
+                        ${tasks.length >= 3 ? `The user's current tasks were: ${tasks.map(t => t.text).join(', ').slice(-3)}...` : ''}
                         Generate a short, 1-sentence message to the employee. 
                         Address the employee as ${initialState.name}.
                         Be pressuring.
@@ -133,9 +132,9 @@ export const useSimulator = (initialState) => {
                 You are a manager. The user's goal is: "${initialState.goal}".
                 Generate a single, realistic work task that works toward this goal, 
                 builds on top of previous tasks, and is different from the user's previous tasks.
-                The user's previous tasks were: ${(tasks.map(t => t.text).join(', ').slice(-2))}.
-                Return ONLY the task text. NO quotes.
-                Include ONLY a single digit difficulty level from 1-5 at the end of the task.
+                ${tasks.length >= 3 ? `The user's previous tasks were: ${tasks.map(t => t.text).join(', ').slice(-3)}...` : ''}
+                Include a single digit number from 1-5 for the task's difficulty level at the end of the task text.
+                DO NOT include quotes.
                 Keep it short.
             `;
 
@@ -147,17 +146,22 @@ export const useSimulator = (initialState) => {
                 })
             });
             const data = await response.json();
-            const text = data.message.content.slice(0, -1);
-            console.log(text);
+            const rawText = data.message.content.trim();
+            console.log(rawText);
+
+            // Extract difficulty (last character) and task text (everything before)
+            const difficultyMatch = rawText.match(/\d$/);
+            const difficulty = difficultyMatch ? parseInt(difficultyMatch[0]) : 1;
+            const taskText = difficultyMatch ? rawText.slice(0, -1).trim() : rawText;
 
             const newTaskId = Date.now();
             setTasks((prev) => [...prev, {
                 id: newTaskId,
-                text: text,
+                text: taskText,
                 completed: false,
-                difficulty: parseInt(text.slice(-1))
+                difficulty: Math.min(5, Math.max(1, difficulty))
             }]);
-            addMessage(`Hey ${initialState.name}, for your new task: ${text}`);
+            addMessage(`Hey ${initialState.name}, for your new task: ${taskText}`);
 
         } catch (error) {
             console.error("Error generating task:", error);
@@ -174,6 +178,7 @@ export const useSimulator = (initialState) => {
     // Generate initial 2 tasks 
     useEffect(() => {
         const initTasks = async () => {
+            await generateNewTask();
             await generateNewTask();
             await generateNewTask();
         };
