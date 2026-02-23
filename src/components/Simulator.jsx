@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import ClockIn from './ClockIn';
 import Workspace from './Workspace';
 import Summary from './Summary';
@@ -11,6 +11,8 @@ export default function Simulator() {
     const handleClockIn = (data) => {
         setSessionData(data);
         setGameState('WORK');
+        // Push state to history to enable catching the back button
+        window.history.pushState({ isSimulatorActive: true }, '');
     };
 
     const handleEndSession = (resultData) => {
@@ -23,6 +25,26 @@ export default function Simulator() {
         setResults(null);
         setGameState('CLOCK_IN');
     };
+
+    // Prevent accidental back navigation during an active session
+    useEffect(() => {
+        const handlePopState = (e) => {
+            if (gameState === 'WORK') {
+                const confirmLeave = window.confirm("Are you sure you want to leave? Your current session will be lost.");
+                if (confirmLeave) {
+                    // User confirmed, revert to clock in
+                    setGameState('CLOCK_IN');
+                    setSessionData(null);
+                } else {
+                    // User canceled, push the state back to keep them on the page
+                    window.history.pushState({ isSimulatorActive: true }, '');
+                }
+            }
+        };
+
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, [gameState]);
 
     return (
         <div className="bg-black min-h-screen font-sans">

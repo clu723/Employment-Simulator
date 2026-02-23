@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, Circle } from 'lucide-react';
+import TaskVerificationModal from './TaskVerificationModal';
 
-const TaskList = ({ tasks, onComplete }) => {
+const TaskList = ({ tasks, onComplete, onVerify, onBypass }) => {
+    const [selectedTask, setSelectedTask] = useState(null);
     const activeTasks = tasks.filter(t => !t.completed);
 
     return (
-        <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-4 h-[300px] flex flex-col">
+        <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-4 h-full flex flex-col">
             <div className="flex items-center gap-2 mb-4 border-b border-white/10 pb-2">
                 <h2 className="text-lg font-semibold text-white">Current Tasks</h2>
                 <span className="bg-blue-500 text-xs px-2 py-0.5 rounded-full text-white">{activeTasks.length}</span>
@@ -24,7 +26,7 @@ const TaskList = ({ tasks, onComplete }) => {
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, x: 20 }}
                                 className="group flex items-center gap-3 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl p-3 cursor-pointer transition-all"
-                                onClick={() => onComplete(task.id)}
+                                onClick={() => setSelectedTask(task)}
                             >
                                 <div className="text-gray-400 group-hover:text-green-400 transition-colors">
                                     <Circle size={20} />
@@ -42,6 +44,14 @@ const TaskList = ({ tasks, onComplete }) => {
                     )}
                 </AnimatePresence>
             </div>
+
+            <TaskVerificationModal
+                task={selectedTask}
+                isOpen={!!selectedTask}
+                onClose={() => setSelectedTask(null)}
+                onVerify={onVerify}
+                onBypass={onBypass}
+            />
         </div>
     );
 };

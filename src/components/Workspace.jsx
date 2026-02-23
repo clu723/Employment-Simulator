@@ -9,7 +9,7 @@ import { getLevelFromScore } from '../utils/levels';
 import Leaderboard from './Leaderboard';
 
 const Workspace = ({ sessionData, onEndSession }) => {
-    const { timeLeft, score, streak, isPaused, setIsPaused, tasksCompleted, tasks, messages, completeTask, formatTime, isActive, setIsActive, error } = useSimulator(sessionData);
+    const { timeLeft, score, streak, isPaused, setIsPaused, tasksCompleted, tasks, messages, completeTask, bypassTask, verifyTaskCompletion, formatTime, isActive, setIsActive, error } = useSimulator(sessionData);
     const [showLeaderboard, setShowLeaderboard] = React.useState(false);
 
     const level = getLevelFromScore(score);
@@ -29,17 +29,6 @@ const Workspace = ({ sessionData, onEndSession }) => {
 
     return (
         <div className="min-h-screen bg-gray-900 text-white p-6 flex flex-col relative">
-            {/* Floating Leaderboard Button */}
-            <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => setShowLeaderboard(true)}
-                className="fixed right-6 bottom-6 lg:bottom-1/2 lg:translate-y-1/2 z-40 bg-yellow-500 text-gray-900 p-4 rounded-full shadow-2xl border-4 border-gray-900 hover:bg-yellow-400 transition-colors"
-                title="View Leaderboard"
-            >
-                <Trophy size={24} />
-            </motion.button>
-
             <Leaderboard isOpen={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
 
             {/* Header */}
@@ -88,6 +77,15 @@ const Workspace = ({ sessionData, onEndSession }) => {
 
                 <div className="flex items-center gap-3">
                     <button
+                        onClick={() => setShowLeaderboard(true)}
+                        className="bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 px-4 py-2 rounded-lg border border-yellow-500/20 flex items-center gap-2 transition-colors"
+                        title="View Leaderboard"
+                    >
+                        <Trophy size={18} />
+                        Leaderboard
+                    </button>
+
+                    <button
                         onClick={() => setIsPaused(!isPaused)}
                         className={`px-4 py-2 rounded-lg border flex items-center gap-2 transition-colors ${isPaused
                             ? 'bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-500 border-yellow-500/30'
@@ -128,8 +126,14 @@ const Workspace = ({ sessionData, onEndSession }) => {
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.3 }}
+                    className="h-full overflow-hidden"
                 >
-                    <TaskList tasks={tasks} onComplete={completeTask} />
+                    <TaskList
+                        tasks={tasks}
+                        onComplete={completeTask}
+                        onVerify={verifyTaskCompletion}
+                        onBypass={bypassTask}
+                    />
                 </motion.div>
             </div>
         </div>

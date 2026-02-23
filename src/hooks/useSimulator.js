@@ -212,12 +212,14 @@ export const useSimulator = (initialState) => {
         initTasks();
     }, []);
 
-    const completeTask = useCallback((taskId) => {
+    const completeTask = useCallback((taskId, isBypass = false) => {
         setTasks((prev) => prev.map(t => t.id === taskId ? { ...t, completed: true } : t));
 
         const task = tasks.find(t => t.id === taskId);
         if (task && !task.completed) {
-            setScore((prev) => prev + (task.difficulty * 100));
+            // Give 50% points on bypass
+            const pointMultiplier = isBypass ? 0.5 : 1;
+            setScore((prev) => prev + (task.difficulty * 100 * pointMultiplier));
             setTasksCompleted((prev) => prev + 1);
 
             // Streak Logic
@@ -237,6 +239,10 @@ export const useSimulator = (initialState) => {
                 setLastTaskDate(todayStr);
             }
 
+            if (isBypass) {
+                addMessage("I disagree, but fine. We're moving on. Just don't let it happen again.");
+            }
+
             setTimeout(() => {
                 generateNewTask();
             }, 30000);
@@ -244,6 +250,56 @@ export const useSimulator = (initialState) => {
 
         // setTasks((prev) => prev.filter(t => t.id !== taskId));
     }, [tasks, lastTaskDate]);
+
+    const bypassTask = (taskId) => {
+        completeTask(taskId, true);
+    };
+
+    const verifyTaskCompletion = async (taskId, extractedText) => {
+        const task = tasks.find(t => t.id === taskId);
+        if (!task) throw new Error("Task not found");
+
+        const prompt = `
+            You are a manager in a workplace simulation. 
+            Evaluate if the following extracted text from a screenshot proves that the employee completed the task: "${task.text}".
+            Extracted Text: """${extractedText}"""
+            
+            Respond ONLY in valid JSON format with no markdown formatting. The JSON must have two keys:
+            1. "approved": boolean (true if the text shows they completed the task, false if irrelevant or incomplete)
+            2. "message": string (A short, pressuring, context-aware message to the employee from you, the manager, either praising them or rejecting their work).
+        `;
+
+        const response = await fetch("https://desktop-f2niegj.tail23801d.ts.net/api/llm", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                messages: [{ role: "user", content: prompt }]
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error("Failed to communicate with Manager AI.");
+        }
+
+        const data = await response.json();
+        const rawJsonString = data.message.content.trim().replace(/^```json/, '').replace(/```$/, '').trim();
+
+        let decision;
+        try {
+            decision = JSON.parse(rawJsonString);
+        } catch (e) {
+            console.error("Failed to parse LLM JSON:", rawJsonString);
+            throw new Error("Manager returned invalid response format.");
+        }
+
+        if (decision.approved) {
+            completeTask(taskId);
+            addMessage(decision.message || "Good work. Now onto the next one.");
+        } else {
+            addMessage(decision.message || "This isn't what I asked for. Try again.");
+            throw new Error("Manager rejected the task proof.");
+        }
+    };
 
     const formatTime = (seconds) => {
         const mins = Math.floor(seconds / 60);
@@ -261,8 +317,11 @@ export const useSimulator = (initialState) => {
         tasks,
         messages,
         completeTask,
+        bypassTask,
+        verifyTaskCompletion,
         formatTime,
         isActive,
+
         setIsActive,
         error
     };
