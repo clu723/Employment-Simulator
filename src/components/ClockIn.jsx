@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { getLevelFromScore } from '../utils/levels';
 
 const ClockIn = ({ onClockIn }) => {
     const { currentUser, logout } = useAuth();
@@ -12,8 +13,28 @@ const ClockIn = ({ onClockIn }) => {
     const [goal, setGoal] = useState('');
     const [duration, setDuration] = useState(30);
     const [error, setError] = useState('');
+    const [userScore, setUserScore] = useState(0);
 
     const derivedName = currentUser?.displayName?.split(' ')[0] || 'Employee';
+
+    useEffect(() => {
+        const fetchScore = async () => {
+            if (currentUser) {
+                try {
+                    const docRef = doc(db, 'users', currentUser.uid);
+                    const docSnap = await getDoc(docRef);
+                    if (docSnap.exists()) {
+                        setUserScore(docSnap.data().score || 0);
+                    }
+                } catch (err) {
+                    console.error("Error fetching score:", err);
+                }
+            }
+        };
+        fetchScore();
+    }, [currentUser]);
+
+    const level = getLevelFromScore(userScore);
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -46,11 +67,16 @@ const ClockIn = ({ onClockIn }) => {
                     </div>
                     <div>
                         {currentUser ? (
-                            <div className="flex items-center gap-4">
-                                <span className="text-sm text-gray-300">Welcome {derivedName}!</span>
-                                <button onClick={handleLogout} className="text-sm text-red-400 hover:text-red-300 flex items-center gap-1">
-                                    <LogOut size={16} /> Logout
-                                </button>
+                            <div className="flex flex-col items-start">
+                                <div className="flex items-center gap-4">
+                                    <span className="text-sm text-gray-300">Welcome {derivedName}!</span>
+                                    <button onClick={handleLogout} className="text-sm text-red-400 hover:text-red-300 flex items-center gap-1">
+                                        <LogOut size={16} /> Logout
+                                    </button>
+                                </div>
+                                <div className={`text-xs font-bold mt-1 ${level.color}`}>
+                                    {level.title}
+                                </div>
                             </div>
                         ) : (
                             <div className="flex items-center gap-4">
@@ -74,7 +100,7 @@ const ClockIn = ({ onClockIn }) => {
                             value={goal}
                             onChange={(e) => setGoal(e.target.value)}
                             className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-white placeholder-gray-500"
-                            placeholder="Complete the project report"
+                            placeholder="e.g., Complete the project report"
                             required
                         />
                     </div>
@@ -88,7 +114,6 @@ const ClockIn = ({ onClockIn }) => {
                             value={duration}
                             onChange={(e) => setDuration(parseInt(e.target.value))}
                             min="1"
-                            max="480"
                             className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-white placeholder-gray-500"
                             required
                         />

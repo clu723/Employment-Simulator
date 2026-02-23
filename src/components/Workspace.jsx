@@ -4,12 +4,15 @@ import { Clock, Trophy, LogOut, Flame, Pause, Play } from 'lucide-react';
 import { useSimulator } from '../hooks/useSimulator';
 import ManagerChat from './ManagerChat';
 import TaskList from './TaskList';
+import { getLevelFromScore } from '../utils/levels';
 
 import Leaderboard from './Leaderboard';
 
 const Workspace = ({ sessionData, onEndSession }) => {
     const { timeLeft, score, streak, isPaused, setIsPaused, tasksCompleted, tasks, messages, completeTask, formatTime, isActive, setIsActive, error } = useSimulator(sessionData);
     const [showLeaderboard, setShowLeaderboard] = React.useState(false);
+
+    const level = getLevelFromScore(score);
 
     // End session when time runs out
     React.useEffect(() => {
@@ -65,6 +68,13 @@ const Workspace = ({ sessionData, onEndSession }) => {
                         </div>
                     </div>
 
+                    <div className="flex flex-col items-center hidden sm:flex">
+                        <span className="text-xs text-gray-400 uppercase tracking-wider">Level</span>
+                        <div className={`text-sm font-bold flex items-center gap-1 ${level.color} ${level.bg} px-3 py-1 mt-1 rounded-full border ${level.border}`}>
+                            {level.title}
+                        </div>
+                    </div>
+
                     {streak > 0 && (
                         <div className="flex flex-col items-center">
                             <span className="text-xs text-gray-400 uppercase tracking-wider">Streak</span>
@@ -80,8 +90,8 @@ const Workspace = ({ sessionData, onEndSession }) => {
                     <button
                         onClick={() => setIsPaused(!isPaused)}
                         className={`px-4 py-2 rounded-lg border flex items-center gap-2 transition-colors ${isPaused
-                                ? 'bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-500 border-yellow-500/30'
-                                : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
+                            ? 'bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-500 border-yellow-500/30'
+                            : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
                             }`}
                         title={isPaused ? "Resume Simulator" : "Pause Simulator"}
                     >
@@ -102,7 +112,7 @@ const Workspace = ({ sessionData, onEndSession }) => {
             {/* Main Content */}
             {error && (
                 <div className="bg-red-500/20 border border-red-500 text-red-200 p-4 rounded-xl mb-6">
-                    Error: {error}
+                    Error: Failed to connect to company servers
                 </div>
             )}
             <div className="flex-1 grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-6 overflow-hidden">

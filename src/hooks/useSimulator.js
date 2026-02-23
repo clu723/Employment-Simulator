@@ -14,6 +14,7 @@ export const useSimulator = (initialState) => {
     const [isPaused, setIsPaused] = useState(false);
     const [streak, setStreak] = useState(0);
     const [lastTaskDate, setLastTaskDate] = useState(null);
+    const [lastDecayDate, setLastDecayDate] = useState(null); // New state for decay
     const [isActive, setIsActive] = useState(true);
     const [error, setError] = useState(null);
     const isGeneratingRef = useRef(false);
@@ -29,9 +30,30 @@ export const useSimulator = (initialState) => {
                     const docSnap = await getDoc(docRef);
                     if (docSnap.exists()) {
                         const data = docSnap.data();
-                        setScore(data.score || 0);
+
+                        let currentScore = data.score || 0;
+                        const savedDecayDate = data.lastDecayDate || new Date().toDateString();
+                        const today = new Date();
+                        const todayStr = today.toDateString();
+
+                        // Decay Logic
+                        if (savedDecayDate !== todayStr) {
+                            const lastDate = new Date(savedDecayDate);
+                            const diffTime = Math.abs(today - lastDate);
+                            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+                            if (diffDays > 0) {
+                                currentScore = Math.max(0, currentScore - (diffDays * 500));
+                            }
+                        }
+
+                        setScore(currentScore);
                         setStreak(data.streak || 0);
                         setLastTaskDate(data.lastTaskDate || null);
+                        setLastDecayDate(todayStr);
+                    } else {
+                        // Initialize decay date for new users
+                        setLastDecayDate(new Date().toDateString());
                     }
                 } catch (err) {
                     console.error("Error loading user data:", err);
@@ -40,8 +62,9 @@ export const useSimulator = (initialState) => {
         };
         loadScore();
     }, [currentUser]);
+
     useEffect(() => {
-        if (!currentUser) return;
+        if (!currentUser || !lastDecayDate) return;
 
         const timeoutId = setTimeout(async () => {
             try {
@@ -49,7 +72,8 @@ export const useSimulator = (initialState) => {
                 await setDoc(docRef, {
                     score: score,
                     streak: streak,
-                    lastTaskDate: lastTaskDate
+                    lastTaskDate: lastTaskDate,
+                    lastDecayDate: lastDecayDate
                 }, { merge: true });
             } catch (err) {
                 console.error("Error saving user data:", err);
@@ -57,7 +81,7 @@ export const useSimulator = (initialState) => {
         }, 1000);
 
         return () => clearTimeout(timeoutId);
-    }, [score, streak, lastTaskDate, currentUser]);
+    }, [score, streak, lastTaskDate, lastDecayDate, currentUser]);
 
     useEffect(() => {
         stateRef.current = { score, timeLeft, goal: initialState.goal };

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, X } from 'lucide-react';
 import { db } from '../firebase';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { getLevelFromScore } from '../utils/levels';
 
 const Leaderboard = ({ isOpen, onClose }) => {
     const [leaders, setLeaders] = useState([]);
@@ -70,35 +71,43 @@ const Leaderboard = ({ isOpen, onClose }) => {
                                 <div className="text-center py-8 text-gray-400">No scores yet.</div>
                             ) : (
                                 <div className="space-y-2">
-                                    {leaders.map((user, index) => (
-                                        <motion.div
-                                            key={user.id}
-                                            initial={{ opacity: 0, x: -20 }}
-                                            animate={{ opacity: 1, x: 0 }}
-                                            transition={{ delay: index * 0.05 }}
-                                            className={`flex items-center justify-between p-3 rounded-lg border ${index === 0 ? 'bg-yellow-500/10 border-yellow-500/30' :
-                                                index === 1 ? 'bg-gray-400/10 border-gray-400/30' :
-                                                    index === 2 ? 'bg-orange-500/10 border-orange-500/30' :
-                                                        'bg-white/5 border-white/5'
-                                                }`}
-                                        >
-                                            <div className="flex items-center gap-4">
-                                                <span className={`font-mono font-bold w-6 text-center ${index === 0 ? 'text-yellow-500' :
-                                                    index === 1 ? 'text-gray-300' :
-                                                        index === 2 ? 'text-orange-400' :
-                                                            'text-gray-500'
-                                                    }`}>
-                                                    #{index + 1}
-                                                </span>
-                                                <div className="font-bold text-gray-200 truncate max-w-[400px]">
-                                                    {user.companyAlias || 'Anonymous Employee'}
+                                    {leaders.map((user, index) => {
+                                        const level = getLevelFromScore(user.score || 0);
+                                        return (
+                                            <motion.div
+                                                key={user.id}
+                                                initial={{ opacity: 0, x: -20 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                transition={{ delay: index * 0.05 }}
+                                                className={`flex items-center justify-between p-3 rounded-lg border ${index === 0 ? 'bg-yellow-500/10 border-yellow-500/30' :
+                                                    index === 1 ? 'bg-gray-400/10 border-gray-400/30' :
+                                                        index === 2 ? 'bg-orange-500/10 border-orange-500/30' :
+                                                            'bg-white/5 border-white/5'
+                                                    }`}
+                                            >
+                                                <div className="flex items-center gap-4">
+                                                    <span className={`font-mono font-bold w-6 text-center ${index === 0 ? 'text-yellow-500' :
+                                                        index === 1 ? 'text-gray-300' :
+                                                            index === 2 ? 'text-orange-400' :
+                                                                'text-gray-500'
+                                                        }`}>
+                                                        #{index + 1}
+                                                    </span>
+                                                    <div className="flex flex-col">
+                                                        <div className="font-bold text-gray-200 truncate max-w-[300px]">
+                                                            {user.companyAlias || 'Anonymous Employee'}
+                                                        </div>
+                                                        <div className={`text-xs ${level.color} truncate max-w-[300px]`}>
+                                                            {level.title}
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            <span className="font-mono text-gray-300">
-                                                {user.score?.toLocaleString()}
-                                            </span>
-                                        </motion.div>
-                                    ))}
+                                                <span className="font-mono text-gray-300">
+                                                    {user.score?.toLocaleString()}
+                                                </span>
+                                            </motion.div>
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>
