@@ -86,8 +86,8 @@ const ClockIn = ({ onClockIn }) => {
                     </div>
                 </div>
 
-                <h1 className="text-3xl font-bold text-center mb-2">Employment Simulator</h1>
-                <p className="text-gray-400 text-center mb-8">Clock in to start your shift.</p>
+                <h1 className="text-3xl font-bold text-center mb-2">AI Employment Simulator</h1>
+                <p className="text-gray-400 text-center mb-8">Set a goal, time, and clock in to start your shift.</p>
                 {error && <div className="bg-red-500/20 border border-red-500 text-red-100 px-4 py-2 rounded mb-4 text-center text-sm">{error}</div>}
 
                 <form onSubmit={handleSubmit} className="space-y-6">

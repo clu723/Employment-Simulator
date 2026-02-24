@@ -9,7 +9,7 @@ import { getLevelFromScore } from '../utils/levels';
 import Leaderboard from './Leaderboard';
 
 const Workspace = ({ sessionData, onEndSession }) => {
-    const { timeLeft, score, streak, isPaused, setIsPaused, tasksCompleted, tasks, messages, completeTask, bypassTask, verifyTaskCompletion, formatTime, isActive, setIsActive, error } = useSimulator(sessionData);
+    const { timeLeft, score, streak, isPaused, setIsPaused, tasksCompleted, tasks, messages, completeTask, bypassTask, deleteTask, addCustomTask, verifyTaskCompletion, formatTime, isActive, setIsActive, error } = useSimulator(sessionData);
     const [showLeaderboard, setShowLeaderboard] = React.useState(false);
 
     const level = getLevelFromScore(score);
@@ -133,6 +133,8 @@ const Workspace = ({ sessionData, onEndSession }) => {
                         onComplete={completeTask}
                         onVerify={verifyTaskCompletion}
                         onBypass={bypassTask}
+                        onDeleteTask={deleteTask}
+                        onAddTask={addCustomTask}
                     />
                 </motion.div>
             </div>

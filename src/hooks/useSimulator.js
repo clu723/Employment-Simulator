@@ -17,6 +17,7 @@ export const useSimulator = (initialState) => {
     const [lastDecayDate, setLastDecayDate] = useState(null); // New state for decay
     const [isActive, setIsActive] = useState(true);
     const [error, setError] = useState(null);
+    const [isGenerationOnCooldown, setIsGenerationOnCooldown] = useState(false);
     const isGeneratingRef = useRef(false);
     const stateRef = useRef({ score, timeLeft, goal: initialState.goal });
     const { currentUser } = useAuth();
@@ -150,7 +151,7 @@ export const useSimulator = (initialState) => {
         setMessages((prev) => [...prev, { text, sender: 'Manager', id: Date.now() }]);
     };
 
-    const generateNewTask = async () => {
+    const generateNewTask = useCallback(async () => {
         if (isGeneratingRef.current) return;
         isGeneratingRef.current = true;
 
@@ -200,17 +201,26 @@ export const useSimulator = (initialState) => {
         } finally {
             isGeneratingRef.current = false;
         }
-    };
+    }, [initialState.goal, initialState.name, tasks, addMessage]);
 
-    // Generate initial 2 tasks 
+    // Handle generation cooldown
     useEffect(() => {
-        const initTasks = async () => {
-            await generateNewTask();
-            await generateNewTask();
-            await generateNewTask();
-        };
-        initTasks();
-    }, []);
+        if (!isGenerationOnCooldown) return;
+        const cooldownTimer = setTimeout(() => {
+            setIsGenerationOnCooldown(false);
+        }, 120000); // 120 seconds
+        return () => clearTimeout(cooldownTimer);
+    }, [isGenerationOnCooldown]);
+
+    // Auto-generate tasks when below threshold (3 active tasks)
+    useEffect(() => {
+        if (!isActive || isPaused || isGenerationOnCooldown) return;
+
+        const activeTasksCount = tasks.filter(t => !t.completed).length;
+        if (activeTasksCount < 3 && !isGeneratingRef.current) {
+            generateNewTask();
+        }
+    }, [tasks, isActive, isPaused, generateNewTask, isGenerationOnCooldown]);
 
     const completeTask = useCallback((taskId, isBypass = false) => {
         setTasks((prev) => prev.map(t => t.id === taskId ? { ...t, completed: true } : t));
@@ -243,16 +253,27 @@ export const useSimulator = (initialState) => {
                 addMessage("I disagree, but fine. We're moving on. Just don't let it happen again.");
             }
 
-            setTimeout(() => {
-                generateNewTask();
-            }, 30000);
+            // Set cooldown for generating new tasks after completion
+            setIsGenerationOnCooldown(true);
         }
-
-        // setTasks((prev) => prev.filter(t => t.id !== taskId));
-    }, [tasks, lastTaskDate]);
+    }, [tasks, lastTaskDate, generateNewTask]);
 
     const bypassTask = (taskId) => {
         completeTask(taskId, true);
+    };
+
+    const deleteTask = (taskId) => {
+        setTasks((prev) => prev.filter(t => t.id !== taskId));
+    };
+
+    const addCustomTask = (text, difficulty = 1) => {
+        const newTaskId = Date.now();
+        setTasks((prev) => [...prev, {
+            id: newTaskId,
+            text,
+            completed: false,
+            difficulty: Math.min(5, Math.max(1, difficulty))
+        }]);
     };
 
     const verifyTaskCompletion = async (taskId, extractedText) => {
@@ -318,6 +339,8 @@ export const useSimulator = (initialState) => {
         messages,
         completeTask,
         bypassTask,
+        deleteTask,
+        addCustomTask,
         verifyTaskCompletion,
         formatTime,
         isActive,
