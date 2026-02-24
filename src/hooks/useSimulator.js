@@ -158,7 +158,7 @@ export const useSimulator = (initialState) => {
         try {
             const prompt = `
                 You are a manager. The user's goal is: "${initialState.goal}".
-                Generate a single, realistic work task that works toward this goal, 
+                Generate a single, realistic, not too complex work task that works toward this goal, 
                 builds on top of previous tasks, and is different from the user's previous tasks.
                 ${tasks.length >= 3 ? `The user's previous tasks were: ${tasks.map(t => t.text).join(', ').slice(-3)}...` : ''}
                 Include a single digit number from 1-5 for the task's difficulty level at the end of the task text.

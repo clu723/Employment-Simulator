@@ -66,23 +66,17 @@ const ClockIn = ({ onClockIn }) => {
                         </div>
                     </div>
                     <div>
-                        {currentUser ? (
-                            <div className="flex flex-col items-start">
-                                <div className="flex items-center gap-4">
-                                    <span className="text-sm text-gray-300">Welcome {derivedName}!</span>
-                                    <button onClick={handleLogout} className="text-sm text-red-400 hover:text-red-300 flex items-center gap-1">
-                                        <LogOut size={16} /> Logout
-                                    </button>
-                                </div>
-                                <div className={`text-xs font-bold mt-1 ${level.color}`}>
-                                    {level.title}
-                                </div>
-                            </div>
-                        ) : (
+                        <div className="flex flex-col items-start">
                             <div className="flex items-center gap-4">
-                                <Link to="/login" className="text-sm text-blue-400 hover:text-blue-300">Login</Link>
+                                <span className="text-sm text-gray-300">Welcome {derivedName}!</span>
+                                <button onClick={handleLogout} className="text-sm text-red-400 hover:text-red-300 flex items-center gap-1">
+                                    <LogOut size={16} /> Logout
+                                </button>
                             </div>
-                        )}
+                            <div className={`text-xs font-bold mt-1 ${level.color}`}>
+                                {level.title}
+                            </div>
+                        </div>
                     </div>
                 </div>
 
