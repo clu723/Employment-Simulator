@@ -229,7 +229,11 @@ export const useSimulator = (initialState) => {
         if (task && !task.completed) {
             // Give 50% points on bypass
             const pointMultiplier = isBypass ? 0.5 : 1;
-            setScore((prev) => prev + (task.difficulty * 100 * pointMultiplier));
+            const streakMultiplier = 1 + (streak * 0.1);
+            const basePoints = task.difficulty * 100;
+            const finalPoints = basePoints * pointMultiplier * streakMultiplier;
+
+            setScore((prev) => prev + finalPoints);
             setTasksCompleted((prev) => prev + 1);
 
             // Streak Logic

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, X } from 'lucide-react';
+import { Trophy, X, Flame } from 'lucide-react';
 import { db } from '../firebase';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { getLevelFromScore } from '../utils/levels';
@@ -102,9 +102,17 @@ const Leaderboard = ({ isOpen, onClose }) => {
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <span className="font-mono text-gray-300">
-                                                    {user.score?.toLocaleString()}
-                                                </span>
+                                                <div className="flex flex-col items-end gap-1">
+                                                    <span className="font-mono text-gray-300">
+                                                        {user.score?.toLocaleString()}
+                                                    </span>
+                                                    {user.streak > 0 && (
+                                                        <div className="flex items-center gap-1 text-orange-500 text-xs font-bold">
+                                                            <Flame size={12} fill="currentColor" />
+                                                            {user.streak}d
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </motion.div>
                                         );
                                     })}
