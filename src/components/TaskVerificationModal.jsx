@@ -97,7 +97,7 @@ const TaskVerificationModal = ({ task, isOpen, onClose, onVerify, onBypass }) =>
                         initial={{ opacity: 0, scale: 0.95, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                        className="m-auto w-full max-w-6xl bg-gray-900 border border-white/10 rounded-2xl shadow-2xl relative"
+                        className="m-auto w-full max-w-lg sm:max-w-xl bg-gray-900 border border-white/10 rounded-2xl shadow-2xl relative"
                     >
                         {/* Header */}
                         <div className="flex items-center justify-between p-4 border-b border-white/10 bg-black/20 rounded-t-2xl">
@@ -135,6 +135,7 @@ const TaskVerificationModal = ({ task, isOpen, onClose, onVerify, onBypass }) =>
                                             ref={fileInputRef}
                                             onChange={handleFileChange}
                                             accept="image/*"
+                                            capture="environment"
                                             className="hidden"
                                         />
                                         <div className="bg-white/5 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-blue-400/20 group-hover:text-blue-400 transition-colors">

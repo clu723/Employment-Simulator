@@ -119,9 +119,7 @@ export const useSimulator = (initialState) => {
                     const prompt = `You are a manager character in a browser-based productivity simulator app. The employee (${initialState.name}) is working at their computer toward this goal: "${initialState.goal}".
 ${recentTaskNames ? `Their current tasks are: ${recentTaskNames}.` : ''}
 Write a short, 1-sentence pressure message to the employee to keep them on track. Do not make up tasks or real-world actions. Do not include quotes.`;
-                    
-                    console.log(prompt);
-
+                        
                     const response = await fetch("https://ollama-server.tail23801d.ts.net/api/llm", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -163,9 +161,7 @@ Generate ONE short, realistic task for them to complete AT THEIR COMPUTER — so
 Do NOT generate tasks that require physical presence, other people, or real-world resources (no meetings, phone calls, printing, etc.).
 ${recentTaskNames ? `Recent tasks to avoid repeating: ${recentTaskNames}.` : ''}
 
-Append a single digit 1-5 at the end to indicate difficulty (1=trivial, 5=very hard). No quotes. Keep it under 15 words.`;
-
-            console.log(prompt);
+Append a single digit 1-5 at the end to indicate difficulty (1=trivial, 5=very hard). No quotes. Keep it short.`;
 
             const response = await fetch("https://ollama-server.tail23801d.ts.net/api/llm", {
                 method: "POST",
