@@ -21,7 +21,7 @@ const Summary = ({ results, onRestart }) => {
 
                 <div className="grid grid-cols-2 gap-4 mb-8">
                     <div className="bg-black/20 p-4 rounded-xl border border-white/5">
-                        <p className="text-gray-400 text-sm mb-1">Total Score</p>
+                        <p className="text-gray-400 text-sm mb-1">Shift Score</p>
                         <p className="text-2xl font-bold text-yellow-400">{results.score.toLocaleString()}</p>
                     </div>
                     <div className="bg-black/20 p-4 rounded-xl border border-white/5">

@@ -9,7 +9,7 @@ import { getLevelFromScore } from '../utils/levels';
 import Leaderboard from './Leaderboard';
 
 const Workspace = ({ sessionData, onEndSession }) => {
-    const { timeLeft, score, streak, isPaused, setIsPaused, tasksCompleted, tasks, messages, completeTask, bypassTask, deleteTask, addCustomTask, verifyTaskCompletion, formatTime, isActive, setIsActive, error } = useSimulator(sessionData);
+    const { timeLeft, score, shiftScore, streak, isPaused, setIsPaused, tasksCompleted, tasks, messages, completeTask, bypassTask, deleteTask, addCustomTask, verifyTaskCompletion, formatTime, isActive, setIsActive, error } = useSimulator(sessionData);
     const [showLeaderboard, setShowLeaderboard] = React.useState(false);
 
     const level = getLevelFromScore(score);
@@ -18,13 +18,13 @@ const Workspace = ({ sessionData, onEndSession }) => {
     React.useEffect(() => {
         if (timeLeft <= 0 && isActive) {
             setIsActive(false);
-            onEndSession({ score, tasksCompleted });
+            onEndSession({ score: shiftScore, tasksCompleted });
         }
-    }, [timeLeft, isActive, onEndSession, score, tasksCompleted, setIsActive]);
+    }, [timeLeft, isActive, onEndSession, shiftScore, tasksCompleted, setIsActive]);
 
     const handleClockOut = () => {
         setIsActive(false);
-        onEndSession({ score, tasksCompleted });
+        onEndSession({ score: shiftScore, tasksCompleted });
     };
 
     return (

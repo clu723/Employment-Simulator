@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, X, FileText, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
-import { extractTextFromImage } from '../utils/ocr';
+import { fileToBase64 } from '../utils/ocr';
 
 const TaskVerificationModal = ({ task, isOpen, onClose, onVerify, onBypass }) => {
     const [file, setFile] = useState(null);
@@ -10,6 +10,22 @@ const TaskVerificationModal = ({ task, isOpen, onClose, onVerify, onBypass }) =>
     const [progress, setProgress] = useState(0);
     const [errorMsg, setErrorMsg] = useState('');
     const fileInputRef = useRef(null);
+    const onCloseRef = useRef(onClose);
+    useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
+    // Automatically close after success — useEffect avoids stale closure issues
+    useEffect(() => {
+        if (status !== 'success') return;
+        const timer = setTimeout(() => {
+            setFile(null);
+            setPreviewUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null; });
+            setStatus('idle');
+            setProgress(0);
+            setErrorMsg('');
+            onCloseRef.current();
+        }, 1500);
+        return () => clearTimeout(timer);
+    }, [status]);
 
     const handleFileChange = (e) => {
         const selectedFile = e.target.files[0];
@@ -42,24 +58,13 @@ const TaskVerificationModal = ({ task, isOpen, onClose, onVerify, onBypass }) =>
         if (!file) return;
 
         try {
-            setStatus('ocr');
-            setProgress(0);
-
-            // 1. Run OCR
-            const extractedText = await extractTextFromImage(file, setProgress);
-
-            if (!extractedText || extractedText.trim() === '') {
-                throw new Error("No text could be found in the image.");
-            }
-
-            // 2. Run LLM Verification
             setStatus('llm');
-            await onVerify(task.id, extractedText);
+
+            // Convert image to base64 and send directly to the vision LLM
+            const base64Image = await fileToBase64(file);
+            await onVerify(task.id, base64Image);
 
             setStatus('success');
-            setTimeout(() => {
-                handleClose();
-            }, 1500);
 
         } catch (err) {
             console.error(err);
@@ -75,7 +80,7 @@ const TaskVerificationModal = ({ task, isOpen, onClose, onVerify, onBypass }) =>
         setStatus('idle');
         setProgress(0);
         setErrorMsg('');
-        onClose();
+        onCloseRef.current();
     };
 
     if (!isOpen) return null;
@@ -148,18 +153,10 @@ const TaskVerificationModal = ({ task, isOpen, onClose, onVerify, onBypass }) =>
 
                                     {/* Status Indicators */}
                                     <div className="h-14 flex items-center justify-center">
-                                        {status === 'ocr' && (
+                                        {status === 'llm' && (
                                             <div className="flex flex-col items-center text-blue-400">
                                                 <Loader2 className="animate-spin mb-2" size={24} />
-                                                <span className="text-sm font-medium flex items-center gap-2">
-                                                    <FileText size={16} /> Extracting Text... {progress}%
-                                                </span>
-                                            </div>
-                                        )}
-                                        {status === 'llm' && (
-                                            <div className="flex flex-col items-center text-purple-400">
-                                                <Loader2 className="animate-spin mb-2" size={24} />
-                                                <span className="text-sm font-medium">Manager is reviewing proof...</span>
+                                                <span className="text-sm font-medium">Manager is reviewing your submission...</span>
                                             </div>
                                         )}
                                         {status === 'success' && (

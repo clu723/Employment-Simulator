@@ -6,6 +6,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 export const useSimulator = (initialState) => {
     const [timeLeft, setTimeLeft] = useState(initialState.duration * 60);
     const [score, setScore] = useState(0);
+    const [shiftScore, setShiftScore] = useState(0); // Track score earned this shift
     const [tasksCompleted, setTasksCompleted] = useState(0);
     const [tasks, setTasks] = useState([]);
     const [messages, setMessages] = useState([{
@@ -113,19 +114,15 @@ export const useSimulator = (initialState) => {
             if (Math.random() > 0.6 && !isGeneratingRef.current) {
                 isGeneratingRef.current = true;
                 try {
-                    const { goal } = stateRef.current;
-                    const prompt = `
-                        You are a manager in a workplace simulation.
-                        The user's goal is: "${goal}".
-                        Current tasks are: ${(tasks.map(t => t.text).join(', ').slice(-3))}.
-                        ${tasks.length >= 3 ? `The user's current tasks were: ${tasks.map(t => t.text).join(', ').slice(-3)}...` : ''}
-                        Generate a short, 1-sentence message to the employee. 
-                        Address the employee as ${initialState.name}.
-                        Be pressuring.
-                        Do not include quotes.
-                    `;
+                    const activeTasks = tasks.filter(t => !t.completed);
+                    const recentTaskNames = activeTasks.slice(-3).map(t => t.text).join(', ');
+                    const prompt = `You are a manager character in a browser-based productivity simulator app. The employee (${initialState.name}) is working at their computer toward this goal: "${initialState.goal}".
+${recentTaskNames ? `Their current tasks are: ${recentTaskNames}.` : ''}
+Write a short, 1-sentence pressure message to the employee to keep them on track. Do not make up tasks or real-world actions. Do not include quotes.`;
+                    
+                    console.log(prompt);
 
-                    const response = await fetch("https://desktop-f2niegj.tail23801d.ts.net/api/llm", {
+                    const response = await fetch("https://ollama-server.tail23801d.ts.net/api/llm", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
@@ -156,17 +153,21 @@ export const useSimulator = (initialState) => {
         isGeneratingRef.current = true;
 
         try {
-            const prompt = `
-                You are a manager. The user's goal is: "${initialState.goal}".
-                Generate a single, realistic, not too complex work task that works toward this goal, 
-                builds on top of previous tasks, and is different from the user's previous tasks.
-                ${tasks.length >= 3 ? `The user's previous tasks were: ${tasks.map(t => t.text).join(', ').slice(-3)}...` : ''}
-                Include a single digit number from 1-5 for the task's difficulty level at the end of the task text.
-                DO NOT include quotes.
-                Keep it short.
-            `;
+            const activeTasks = tasks.filter(t => !t.completed);
+            const recentTaskNames = activeTasks.slice(-3).map(t => t.text).join('; ');
 
-            const response = await fetch("https://desktop-f2niegj.tail23801d.ts.net/api/llm", {
+            const prompt = `You are a manager in a browser-based productivity simulator app. The user (${initialState.name}) works at their computer and their current goal is: "${initialState.goal}".
+
+Generate ONE short, realistic task for them to complete AT THEIR COMPUTER — something they can do right now in a browser or desktop app and later prove with a screenshot. Examples: searching a topic, writing a document section, filling out a form, reading an article, coding something, watching a tutorial clip.
+
+Do NOT generate tasks that require physical presence, other people, or real-world resources (no meetings, phone calls, printing, etc.).
+${recentTaskNames ? `Recent tasks to avoid repeating: ${recentTaskNames}.` : ''}
+
+Append a single digit 1-5 at the end to indicate difficulty (1=trivial, 5=very hard). No quotes. Keep it under 15 words.`;
+
+            console.log(prompt);
+
+            const response = await fetch("https://ollama-server.tail23801d.ts.net/api/llm", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -175,7 +176,6 @@ export const useSimulator = (initialState) => {
             });
             const data = await response.json();
             const rawText = data.message.content.trim();
-            console.log(rawText);
 
             // Extract difficulty (last character) and task text (everything before)
             const difficultyMatch = rawText.match(/\d$/);
@@ -234,6 +234,7 @@ export const useSimulator = (initialState) => {
             const finalPoints = basePoints * pointMultiplier * streakMultiplier;
 
             setScore((prev) => prev + finalPoints);
+            setShiftScore((prev) => prev + finalPoints); // Accumulate shift score
             setTasksCompleted((prev) => prev + 1);
 
             // Streak Logic
@@ -280,25 +281,26 @@ export const useSimulator = (initialState) => {
         }]);
     };
 
-    const verifyTaskCompletion = async (taskId, extractedText) => {
+    const verifyTaskCompletion = async (taskId, base64Image) => {
         const task = tasks.find(t => t.id === taskId);
         if (!task) throw new Error("Task not found");
 
-        const prompt = `
-            You are a manager in a workplace simulation. 
-            Evaluate if the following extracted text from a screenshot proves that the employee completed the task: "${task.text}".
-            Extracted Text: """${extractedText}"""
-            
-            Respond ONLY in valid JSON format with no markdown formatting. The JSON must have two keys:
-            1. "approved": boolean (true if the text shows they completed the task, false if irrelevant or incomplete)
-            2. "message": string (A short, pressuring, context-aware message to the employee from you, the manager, either praising them or rejecting their work).
-        `;
+        const prompt = `You are a manager in a workplace simulation.
+Look at the screenshot provided by the employee and determine if it proves they completed this task: "${task.text}".
 
-        const response = await fetch("https://desktop-f2niegj.tail23801d.ts.net/api/llm", {
+Respond ONLY in valid JSON format with no markdown. The JSON must have two keys:
+1. "approved": boolean (true if the screenshot clearly shows task completion, false otherwise)
+2. "message": string (A short, pressuring, in-character message from you the manager — praising or rejecting the proof)`;
+
+        const response = await fetch("https://ollama-server.tail23801d.ts.net/api/vision", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                messages: [{ role: "user", content: prompt }]
+                messages: [{
+                    role: "user",
+                    content: prompt,
+                    images: [base64Image]
+                }]
             })
         });
 
@@ -335,6 +337,7 @@ export const useSimulator = (initialState) => {
     return {
         timeLeft,
         score,
+        shiftScore,
         streak,
         isPaused,
         setIsPaused,

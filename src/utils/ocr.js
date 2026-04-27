@@ -1,21 +1,16 @@
-import Tesseract from 'tesseract.js';
-
-export const extractTextFromImage = async (imageFile, onProgress) => {
-    try {
-        const result = await Tesseract.recognize(
-            imageFile,
-            'eng',
-            {
-                logger: m => {
-                    if (onProgress && m.status === 'recognizing text') {
-                        onProgress(Math.round(m.progress * 100));
-                    }
-                }
-            }
-        );
-        return result.data.text;
-    } catch (error) {
-        console.error("OCR Error:", error);
-        throw new Error("Failed to extract text from the image.");
-    }
+/**
+ * Converts an image File object to a base64-encoded string.
+ */
+export const fileToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            // Strip the data URL prefix (e.g. "data:image/png;base64,") 
+            // to get the raw base64 string, which is what Ollama expects.
+            const base64String = reader.result.split(',')[1];
+            resolve(base64String);
+        };
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(file);
+    });
 };
