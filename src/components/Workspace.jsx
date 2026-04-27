@@ -1,20 +1,21 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, Trophy, LogOut, Flame, Pause, Play, MessageSquare, ListTodo } from 'lucide-react';
+import { Clock, Trophy, LogOut, Flame, Pause, Play, MessageSquare, ListTodo, HelpCircle } from 'lucide-react';
 import { useSimulator } from '../hooks/useSimulator';
 import ManagerChat from './ManagerChat';
 import TaskList from './TaskList';
 import { getLevelFromScore } from '../utils/levels';
 import Leaderboard from './Leaderboard';
+import { useTutorial } from '../context/TutorialContext';
 
 const Workspace = ({ sessionData, onEndSession }) => {
     const { timeLeft, score, shiftScore, streak, isPaused, setIsPaused, tasksCompleted, tasks, messages, completeTask, bypassTask, deleteTask, addCustomTask, verifyTaskCompletion, formatTime, isActive, setIsActive, error } = useSimulator(sessionData);
     const [showLeaderboard, setShowLeaderboard] = React.useState(false);
-    const [activeTab, setActiveTab] = React.useState('tasks'); // 'chat' | 'tasks'
+    const [activeTab, setActiveTab] = React.useState('tasks');
+    const { startTutorial } = useTutorial();
 
     const level = getLevelFromScore(score);
 
-    // End session when time runs out
     React.useEffect(() => {
         if (timeLeft <= 0 && isActive) {
             setIsActive(false);
@@ -41,9 +42,19 @@ const Workspace = ({ sessionData, onEndSession }) => {
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
-                        {/* Leaderboard — icon on mobile, label on desktop */}
+                        {/* Help button */}
+                        <button
+                            onClick={() => startTutorial('workspace')}
+                            title="Relaunch tutorial"
+                            className="p-2 text-gray-400 hover:text-blue-400 transition-colors"
+                        >
+                            <HelpCircle size={16} />
+                        </button>
+
+                        {/* Leaderboard */}
                         <button
                             onClick={() => setShowLeaderboard(true)}
+                            data-tutorial="leaderboard-btn"
                             className="bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 p-2 sm:px-3 sm:py-2 rounded-lg border border-yellow-500/20 transition-colors flex items-center gap-1.5"
                             title="View Leaderboard"
                         >
@@ -56,8 +67,7 @@ const Workspace = ({ sessionData, onEndSession }) => {
                             onClick={() => setIsPaused(!isPaused)}
                             className={`p-2 sm:px-3 sm:py-2 rounded-lg border flex items-center gap-1.5 transition-colors ${isPaused
                                 ? 'bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-500 border-yellow-500/30'
-                                : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
-                                }`}
+                                : 'bg-white/10 hover:bg-white/20 text-white border-white/20'}`}
                             title={isPaused ? 'Resume' : 'Pause'}
                         >
                             {isPaused ? <Play size={16} /> : <Pause size={16} />}
@@ -67,6 +77,7 @@ const Workspace = ({ sessionData, onEndSession }) => {
                         {/* Clock Out */}
                         <button
                             onClick={handleClockOut}
+                            data-tutorial="clockout-btn"
                             className="bg-red-500/10 hover:bg-red-500/20 text-red-400 p-2 sm:px-3 sm:py-2 rounded-lg border border-red-500/20 flex items-center gap-1.5 transition-colors"
                             title="Clock Out"
                         >
@@ -77,37 +88,29 @@ const Workspace = ({ sessionData, onEndSession }) => {
                 </div>
 
                 {/* Row 2: stats bar */}
-                <div className="flex items-center gap-4 mt-2 pt-2 border-t border-white/10">
-                    {/* Time */}
+                <div className="flex items-center gap-4 mt-2 pt-2 border-t border-white/10" data-tutorial="header-stats">
                     <div className="flex items-center gap-1.5">
                         <Clock size={14} className={timeLeft < 60 ? 'text-red-400' : 'text-blue-400'} />
                         <span className={`font-mono text-sm font-bold ${timeLeft < 60 ? 'text-red-400 animate-pulse' : 'text-blue-400'}`}>
                             {formatTime(timeLeft)}
                         </span>
                     </div>
-
-                    {/* Score */}
                     <div className="flex items-center gap-1.5">
                         <Trophy size={14} className="text-yellow-400" />
                         <span className="font-mono text-sm font-bold text-yellow-400">{Math.round(score).toLocaleString()}</span>
                     </div>
-
-                    {/* Streak */}
                     {streak > 0 && (
                         <div className="flex items-center gap-1.5">
                             <Flame size={14} className="text-orange-500" />
                             <span className="font-mono text-sm font-bold text-orange-500">{streak}d</span>
                         </div>
                     )}
-
-                    {/* Level — hidden on very small screens */}
                     <div className={`hidden xs:flex items-center text-xs font-bold ${level.color} ${level.bg} px-2 py-0.5 rounded-full border ${level.border}`}>
                         {level.title}
                     </div>
                 </div>
             </header>
 
-            {/* Error banner */}
             {error && (
                 <div className="bg-red-500/20 border-b border-red-500 text-red-200 px-4 py-2 text-sm shrink-0">
                     Failed to connect to company servers
@@ -118,25 +121,17 @@ const Workspace = ({ sessionData, onEndSession }) => {
             <div className="flex lg:hidden border-b border-white/10 bg-gray-900 shrink-0">
                 <button
                     onClick={() => setActiveTab('chat')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium transition-colors ${activeTab === 'chat'
-                        ? 'text-blue-400 border-b-2 border-blue-400'
-                        : 'text-gray-400 hover:text-white'
-                        }`}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium transition-colors ${activeTab === 'chat' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400 hover:text-white'}`}
                 >
                     <MessageSquare size={16} />
                     Manager
-                    {messages.length > 0 && (
-                        <span className="bg-blue-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
-                            {messages.length > 9 ? '9+' : messages.length}
-                        </span>
-                    )}
+                    <span className="bg-blue-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                        {messages.length > 9 ? '9+' : messages.length}
+                    </span>
                 </button>
                 <button
                     onClick={() => setActiveTab('tasks')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium transition-colors ${activeTab === 'tasks'
-                        ? 'text-blue-400 border-b-2 border-blue-400'
-                        : 'text-gray-400 hover:text-white'
-                        }`}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium transition-colors ${activeTab === 'tasks' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400 hover:text-white'}`}
                 >
                     <ListTodo size={16} />
                     Tasks
@@ -148,65 +143,26 @@ const Workspace = ({ sessionData, onEndSession }) => {
 
             {/* ── Main Content ── */}
             <div className="flex-1 min-h-0 p-3 sm:p-6">
-                {/* Desktop: two-column grid */}
+                {/* Desktop */}
                 <div className="hidden lg:grid lg:grid-cols-[1.5fr_1fr] gap-6 h-full">
-                    <motion.div
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.2 }}
-                        className="min-h-0 flex flex-col"
-                    >
+                    <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }} className="min-h-0 flex flex-col">
                         <ManagerChat messages={messages} />
                     </motion.div>
-
-                    <motion.div
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.3 }}
-                        className="min-h-0 flex flex-col"
-                    >
-                        <TaskList
-                            tasks={tasks}
-                            onComplete={completeTask}
-                            onVerify={verifyTaskCompletion}
-                            onBypass={bypassTask}
-                            onDeleteTask={deleteTask}
-                            onAddTask={addCustomTask}
-                        />
+                    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }} className="min-h-0 flex flex-col">
+                        <TaskList tasks={tasks} onComplete={completeTask} onVerify={verifyTaskCompletion} onBypass={bypassTask} onDeleteTask={deleteTask} onAddTask={addCustomTask} />
                     </motion.div>
                 </div>
 
-                {/* Mobile: single tab view */}
+                {/* Mobile tab view */}
                 <div className="lg:hidden h-full">
                     <AnimatePresence mode="wait">
                         {activeTab === 'chat' ? (
-                            <motion.div
-                                key="chat"
-                                initial={{ opacity: 0, x: -16 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -16 }}
-                                transition={{ duration: 0.15 }}
-                                className="h-full"
-                            >
+                            <motion.div key="chat" initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.15 }} className="h-full">
                                 <ManagerChat messages={messages} />
                             </motion.div>
                         ) : (
-                            <motion.div
-                                key="tasks"
-                                initial={{ opacity: 0, x: 16 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: 16 }}
-                                transition={{ duration: 0.15 }}
-                                className="h-full"
-                            >
-                                <TaskList
-                                    tasks={tasks}
-                                    onComplete={completeTask}
-                                    onVerify={verifyTaskCompletion}
-                                    onBypass={bypassTask}
-                                    onDeleteTask={deleteTask}
-                                    onAddTask={addCustomTask}
-                                />
+                            <motion.div key="tasks" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 16 }} transition={{ duration: 0.15 }} className="h-full">
+                                <TaskList tasks={tasks} onComplete={completeTask} onVerify={verifyTaskCompletion} onBypass={bypassTask} onDeleteTask={deleteTask} onAddTask={addCustomTask} />
                             </motion.div>
                         )}
                     </AnimatePresence>

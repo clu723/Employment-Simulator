@@ -135,7 +135,6 @@ const TaskVerificationModal = ({ task, isOpen, onClose, onVerify, onBypass }) =>
                                             ref={fileInputRef}
                                             onChange={handleFileChange}
                                             accept="image/*"
-                                            capture="environment"
                                             className="hidden"
                                         />
                                         <div className="bg-white/5 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-blue-400/20 group-hover:text-blue-400 transition-colors">

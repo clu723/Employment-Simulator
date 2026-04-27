@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Clock, Briefcase, User, LogOut } from 'lucide-react';
+import { Clock, Briefcase, LogOut, HelpCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { getLevelFromScore } from '../utils/levels';
+import { useTutorial } from '../context/TutorialContext';
 
 const ClockIn = ({ onClockIn }) => {
     const { currentUser, logout } = useAuth();
     const navigate = useNavigate();
+    const { startTutorial, advanceToWorkspace } = useTutorial();
     const [goal, setGoal] = useState('');
     const [duration, setDuration] = useState(30);
     const [error, setError] = useState('');
@@ -39,17 +41,14 @@ const ClockIn = ({ onClockIn }) => {
     const handleSubmit = (e) => {
         e.preventDefault();
         if (derivedName && goal && duration > 0) {
+            advanceToWorkspace(); // advance tutorial to workspace phase if active
             onClockIn({ name: derivedName, goal, duration });
         }
     };
 
     const handleLogout = async () => {
         setError('');
-        try {
-            await logout();
-        } catch {
-            setError('Failed to log out');
-        }
+        try { await logout(); } catch { setError('Failed to log out'); }
     };
 
     return (
@@ -65,17 +64,23 @@ const ClockIn = ({ onClockIn }) => {
                             <Clock className="w-8 h-8 text-blue-400" />
                         </div>
                     </div>
-                    <div>
-                        <div className="flex flex-col items-start">
-                            <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
+                        {/* Help / re-launch tutorial button */}
+                        <button
+                            onClick={() => startTutorial('clockin')}
+                            title="Relaunch tutorial"
+                            className="text-gray-400 hover:text-blue-400 transition-colors"
+                        >
+                            <HelpCircle size={20} />
+                        </button>
+                        <div className="flex flex-col items-end">
+                            <div className="flex items-center gap-3">
                                 <span className="text-sm text-gray-300">Welcome {derivedName}!</span>
                                 <button onClick={handleLogout} className="text-sm text-red-400 hover:text-red-300 flex items-center gap-1">
                                     <LogOut size={16} /> Logout
                                 </button>
                             </div>
-                            <div className={`text-xs font-bold mt-1 ${level.color}`}>
-                                {level.title}
-                            </div>
+                            <div className={`text-xs font-bold mt-1 ${level.color}`}>{level.title}</div>
                         </div>
                     </div>
                 </div>
@@ -85,7 +90,7 @@ const ClockIn = ({ onClockIn }) => {
                 {error && <div className="bg-red-500/20 border border-red-500 text-red-100 px-4 py-2 rounded mb-4 text-center text-sm">{error}</div>}
 
                 <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="space-y-2">
+                    <div className="space-y-2" data-tutorial="goal-input">
                         <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
                             <Briefcase size={16} /> Work Goal
                         </label>
@@ -99,7 +104,7 @@ const ClockIn = ({ onClockIn }) => {
                         />
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-2" data-tutorial="duration-input">
                         <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
                             <Clock size={16} /> Shift Duration (Minutes)
                         </label>
@@ -117,6 +122,7 @@ const ClockIn = ({ onClockIn }) => {
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                         type="submit"
+                        data-tutorial="clockin-btn"
                         className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-bold py-3 rounded-lg shadow-lg shadow-blue-500/20 transition-all"
                     >
                         Clock In

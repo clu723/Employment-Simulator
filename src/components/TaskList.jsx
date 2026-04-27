@@ -34,7 +34,7 @@ const TaskList = ({ tasks, onComplete, onVerify, onBypass, onDeleteTask, onAddTa
     };
 
     return (
-        <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-3 sm:p-4 flex-1 flex flex-col min-h-0 relative overflow-hidden">
+        <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-3 sm:p-4 flex-1 flex flex-col min-h-0 relative overflow-hidden" data-tutorial="task-list">
             <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-2">
                 <div className="flex items-center gap-2">
                     <h2 className="text-lg font-semibold text-white">Current Tasks</h2>
@@ -42,6 +42,7 @@ const TaskList = ({ tasks, onComplete, onVerify, onBypass, onDeleteTask, onAddTa
                 </div>
                 <button
                     onClick={() => setIsAddingTask(true)}
+                    data-tutorial="add-task-btn"
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
                 >
                     <Plus size={16} />
@@ -54,9 +55,10 @@ const TaskList = ({ tasks, onComplete, onVerify, onBypass, onDeleteTask, onAddTa
                     {activeTasks.length === 0 ? (
                         <p className="text-gray-500 text-center mt-10">No active tasks. Good job!</p>
                     ) : (
-                        activeTasks.map((task) => (
+                        activeTasks.map((task, index) => (
                             <motion.div
                                 key={task.id}
+                                data-tutorial={index === 0 ? "task-item" : undefined}
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, scale: 0.95 }}
