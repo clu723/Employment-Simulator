@@ -34,7 +34,7 @@ const TaskList = ({ tasks, onComplete, onVerify, onBypass, onDeleteTask, onAddTa
     };
 
     return (
-        <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-3 sm:p-4 flex-1 flex flex-col min-h-0 relative overflow-hidden" data-tutorial="task-list">
+        <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-3 sm:p-4 h-full flex flex-col min-h-0 relative overflow-hidden" data-tutorial="task-list">
             <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-2">
                 <div className="flex items-center gap-2">
                     <h2 className="text-lg font-semibold text-white">Current Tasks</h2>
