@@ -65,7 +65,7 @@ export default function MessageItem({ message, isFirstInGroup }) {
     // Determine accent color for the name
     const getNameColor = () => {
         if (isUser) return 'text-blue-400';
-        if (message.senderRole === 'Engineering Manager') return 'text-red-400';
+        if (message.senderId === 'manager_davis') return 'text-red-400';
         return 'text-gray-200';
     };
 

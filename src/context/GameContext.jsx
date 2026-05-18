@@ -2,10 +2,12 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { useAuth } from './AuthContext';
 import { db } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { CHANNELS, getDMChannels, ALL_CHARACTERS, getCharacterById } from '../data/coworkerTemplates';
+import { ALL_CHARACTERS, getCharacterById } from '../data/coworkerTemplates';
 import { SCHEDULED_EVENTS, RANDOM_EVENTS } from '../data/eventTemplates';
 import { generateText } from '../systems/aiClient';
 import { getRankById, getNextRank, canPromote, RANKS } from '../utils/levels';
+import { buildCoworkerPrompt, buildCoworkerDMPrompt } from '../systems/promptBuilder';
+import { generateProjectContext } from '../systems/workplaceGenerator';
 
 const GameContext = createContext(null);
 
@@ -26,6 +28,11 @@ function createInitialState() {
         streak: 0,
         lastShiftDate: null,
         netWorth: 0,
+
+        // Contextual Workplace
+        workplaceVibe: '',
+        persistentWorkplace: null,
+        projectContext: null,
 
         // Coworker runtime state
         coworkerStates: {},
@@ -60,6 +67,7 @@ export function GameProvider({ children }) {
     const [state, setState] = useState(createInitialState);
     const [activeChannel, setActiveChannel] = useState('general');
     const [isLoaded, setIsLoaded] = useState(false);
+    const [isClockingIn, setIsClockingIn] = useState(false);
     const [typingCharacter, setTypingCharacter] = useState(null);
     const timerRef = useRef(null);
     const eventTimersRef = useRef([]);
@@ -67,8 +75,27 @@ export function GameProvider({ children }) {
     const isGeneratingRef = useRef(false);
     const saveTimeoutRef = useRef(null);
 
-    // All channels (static + DMs)
-    const channels = [...CHANNELS, ...getDMChannels()];
+    // ── Compute dynamic channels ──
+    const generatedChannels = state.persistentWorkplace?.persistentChannels || [
+        { id: 'general', name: 'general', type: 'channel', description: 'Company-wide announcements' }
+    ];
+    
+    const projectChannels = state.projectContext?.projectChannels || [];
+    
+    const dmChannels = ALL_CHARACTERS.map(c => {
+        const roleInfo = state.persistentWorkplace?.baselineRoles?.[c.id] || { title: 'Employee', emoji: '🧑' };
+        return {
+            id: `dm_${c.id}`,
+            name: c.name,
+            type: 'dm',
+            characterId: c.id,
+            avatar: roleInfo.emoji,
+            accentColor: c.accentColor,
+            role: roleInfo.title,
+        };
+    });
+
+    const channels = [...generatedChannels, ...projectChannels, ...dmChannels];
 
     // ── Load from Firestore ──
     useEffect(() => {
@@ -88,6 +115,9 @@ export function GameProvider({ children }) {
                         lastShiftDate: data.lastShiftDate || null,
                         tasksCompletedTotal: data.tasksCompletedTotal || 0,
                         coworkerStates: data.coworkerStates || initCoworkerStates(),
+                        workplaceVibe: data.workplaceVibe || '',
+                        persistentWorkplace: data.persistentWorkplace || null,
+                        projectContext: data.projectContext || null,
                     }));
                 } else {
                     setState(prev => ({
@@ -119,7 +149,9 @@ export function GameProvider({ children }) {
                     lastShiftDate: state.lastShiftDate,
                     tasksCompletedTotal: state.tasksCompletedTotal,
                     coworkerStates: state.coworkerStates,
-                    // Keep legacy fields for leaderboard
+                    workplaceVibe: state.workplaceVibe,
+                    persistentWorkplace: state.persistentWorkplace,
+                    projectContext: state.projectContext,
                     score: state.netWorth
                 }, { merge: true });
             } catch (err) {
@@ -127,7 +159,7 @@ export function GameProvider({ children }) {
             }
         }, 2000);
         return () => clearTimeout(saveTimeoutRef.current);
-    }, [state.rank, state.bankBalance, state.netWorth, state.promotionPoints, state.streak, state.lastShiftDate, state.tasksCompletedTotal, currentUser, isLoaded]);
+    }, [state.rank, state.bankBalance, state.netWorth, state.promotionPoints, state.streak, state.lastShiftDate, state.tasksCompletedTotal, state.workplaceVibe, state.persistentWorkplace, state.projectContext, currentUser, isLoaded]);
 
     // ── Shift Timer ──
     useEffect(() => {
@@ -212,16 +244,16 @@ export function GameProvider({ children }) {
             const recentMsgs = (state.messages[channelId] || []).slice(-5)
                 .map(m => `${m.senderName}: ${m.text}`).join('\n');
 
-            const prompt = `${character.promptPrefix}
-
-Current mood: ${coworkerState.mood || character.defaultMood}
-${coworkerState.memorySummary ? `Recent memory: ${coworkerState.memorySummary}` : ''}
-${state.userGoal ? `The employee's current goal: "${state.userGoal}"` : ''}
-${recentMsgs ? `Recent messages in this channel:\n${recentMsgs}` : ''}
-
-Context: ${event.promptContext}
-
-Write a single message as ${character.name}. Stay in character. Do not use quotes around your message.`;
+            const prompt = buildCoworkerPrompt({
+                character,
+                persistentWorkplace: state.persistentWorkplace,
+                projectContext: state.projectContext,
+                coworkerState,
+                recentMsgs,
+                userGoal: state.userGoal,
+                latestUserMessage: event.latestUserMessage || event.promptContext,
+                behaviorMode: event.behaviorMode || 'workplace_banter'
+            });
 
             // Simulate typing delay
             await new Promise(r => setTimeout(r, 1500 + Math.random() * 2000));
@@ -229,12 +261,13 @@ Write a single message as ${character.name}. Stay in character. Do not use quote
             const text = await generateText(prompt);
 
             if (text) {
+                const roleInfo = state.persistentWorkplace?.baselineRoles?.[character.id] || { title: 'Employee', emoji: '🧑' };
                 addMessage(channelId, {
                     text,
                     senderId: character.id,
                     senderName: character.name,
-                    senderAvatar: character.avatar,
-                    senderRole: character.role,
+                    senderAvatar: roleInfo.emoji,
+                    senderRole: roleInfo.title,
                     type: 'coworker',
                 });
             }
@@ -244,7 +277,7 @@ Write a single message as ${character.name}. Stay in character. Do not use quote
             setTypingCharacter(null);
             isGeneratingRef.current = false;
         }
-    }, [state.coworkerStates, state.messages, state.userGoal]);
+    }, [state.coworkerStates, state.messages, state.userGoal, state.persistentWorkplace, state.projectContext]);
 
     // ── Add a message to a channel ──
     const addMessage = useCallback((channelId, msg) => {
@@ -283,37 +316,34 @@ Write a single message as ${character.name}. Stay in character. Do not use quote
 
                 try {
                     const coworkerState = state.coworkerStates[character.id] || {};
-                    const recentMsgs = [...(state.messages[channelId] || []).slice(-5), { senderName: 'You', text }]
+                    const recentMsgs = (state.messages[channelId] || []).slice(-5)
                         .map(m => `${m.senderName}: ${m.text}`).join('\n');
 
                     const activeTasks = state.tasks.filter(t => !t.completed).slice(0, 3);
-                    const taskContext = activeTasks.length > 0
-                        ? `Current tasks: ${activeTasks.map(t => t.title).join(', ')}`
-                        : '';
-
-                    const prompt = `${character.promptPrefix}
-
-Current mood: ${coworkerState.mood || character.defaultMood}
-Relationship with employee: ${coworkerState.relationshipScore}/100
-${coworkerState.memorySummary ? `Recent memory: ${coworkerState.memorySummary}` : ''}
-${state.userGoal ? `Employee's goal: "${state.userGoal}"` : ''}
-${taskContext}
-
-Recent conversation:
-${recentMsgs}
-
-Reply as ${character.name}. Stay in character. Be natural and conversational. Do not use quotes.`;
+                    
+                    const prompt = buildCoworkerDMPrompt({
+                        character,
+                        persistentWorkplace: state.persistentWorkplace,
+                        projectContext: state.projectContext,
+                        coworkerState,
+                        recentMsgs,
+                        userGoal: state.userGoal,
+                        activeTasks,
+                        latestUserMessage: text,
+                        behaviorMode: 'direct_collaboration'
+                    });
 
                     await new Promise(r => setTimeout(r, 1000 + Math.random() * 2000));
                     const response = await generateText(prompt);
 
                     if (response) {
+                        const roleInfo = state.persistentWorkplace?.baselineRoles?.[character.id] || { title: 'Employee', emoji: '🧑' };
                         addMessage(channelId, {
                             text: response,
                             senderId: character.id,
                             senderName: character.name,
-                            senderAvatar: character.avatar,
-                            senderRole: character.role,
+                            senderAvatar: roleInfo.emoji,
+                            senderRole: roleInfo.title,
                             type: 'coworker',
                         });
                     }
@@ -327,7 +357,7 @@ Reply as ${character.name}. Stay in character. Be natural and conversational. Do
         }
 
         // If team-chat or general, small chance of coworker chiming in
-        if (['general', 'team-chat'].includes(channelId) && !isGeneratingRef.current) {
+        if (!channelId.startsWith('dm_') && !isGeneratingRef.current) {
             if (Math.random() < 0.3) {
                 const randomCoworker = ALL_CHARACTERS[Math.floor(Math.random() * ALL_CHARACTERS.length)];
                 setTimeout(() => {
@@ -335,16 +365,27 @@ Reply as ${character.name}. Stay in character. Be natural and conversational. Do
                         id: 'reply_to_user',
                         channel: channelId,
                         selectedParticipant: randomCoworker.id,
-                        promptContext: `The employee just said: "${text}". React naturally. You may agree, joke, help, or be dismissive based on your personality.`,
+                        latestUserMessage: text,
+                        behaviorMode: 'casual_banter',
+                        promptContext: `React naturally to what the user said in the context of the chat. You may agree, joke, help, or be dismissive based on your personality.`,
                     });
                 }, 3000 + Math.random() * 5000);
             }
         }
-    }, [currentUser, state.coworkerStates, state.messages, state.tasks, state.userGoal, addMessage, triggerEvent]);
+    }, [currentUser, state.coworkerStates, state.messages, state.tasks, state.userGoal, state.persistentWorkplace, state.projectContext, addMessage, triggerEvent]);
 
     // ── Clock In ──
-    const clockIn = useCallback((goal, duration) => {
+    const clockIn = useCallback(async (goal, duration) => {
+        setIsClockingIn(true);
         const now = Date.now();
+        
+        let newProjectContext = state.projectContext;
+        
+        // If the goal is new, generate a new project context
+        if (goal.trim() !== '' && (!state.projectContext || state.projectContext.projectName !== goal)) {
+            newProjectContext = await generateProjectContext(goal, state.persistentWorkplace);
+        }
+
         setState(prev => {
             // Streak logic
             let newStreak = prev.streak;
@@ -377,19 +418,25 @@ Reply as ${character.name}. Stay in character. Be natural and conversational. Do
                 streak: newStreak,
                 lastShiftDate: today,
                 coworkerStates: updatedCoworkerStates,
+                projectContext: newProjectContext,
             };
         });
 
         // Welcome message
-        addMessage('general', {
+        const defaultChannel = generatedChannels[0]?.id || 'general';
+        const managerRole = state.persistentWorkplace?.baselineRoles?.manager_davis;
+        
+        addMessage(defaultChannel, {
             text: `Good to have you in today. Let's make it count.`,
             senderId: 'manager_davis',
             senderName: 'Patricia Davis',
-            senderAvatar: '👩‍💼',
-            senderRole: 'Engineering Manager',
+            senderAvatar: managerRole?.emoji || '👩‍💼',
+            senderRole: managerRole?.title || 'Manager',
             type: 'coworker',
         });
-    }, [addMessage]);
+        
+        setIsClockingIn(false);
+    }, [addMessage, generatedChannels, state.persistentWorkplace, state.projectContext]);
 
     // ── Clock Out / End Shift ──
     const endShift = useCallback(() => {
@@ -416,14 +463,15 @@ Reply as ${character.name}. Stay in character. Be natural and conversational. Do
             };
         });
 
-        addMessage('general', {
+        const defaultChannel = generatedChannels[0]?.id || 'general';
+        addMessage(defaultChannel, {
             text: `Shift complete. Great work today.`,
             senderId: 'system',
             senderName: 'System',
             senderAvatar: '🏢',
             type: 'system',
         });
-    }, [addMessage]);
+    }, [addMessage, generatedChannels]);
 
     // ── Task Management ──
     const addTask = useCallback((title, difficulty = 1, category = 'general') => {
@@ -462,6 +510,15 @@ Reply as ${character.name}. Stay in character. Be natural and conversational. Do
     const deleteTask = useCallback((taskId) => {
         setState(prev => ({ ...prev, tasks: prev.tasks.filter(t => t.id !== taskId) }));
     }, []);
+    
+    // ── Update persistent workplace manually (e.g. from settings) ──
+    const setPersistentWorkplace = useCallback((workplaceVibe, persistentWorkplace) => {
+        setState(prev => ({
+            ...prev,
+            workplaceVibe,
+            persistentWorkplace
+        }));
+    }, []);
 
     // ── Context Value ──
     const value = {
@@ -471,6 +528,7 @@ Reply as ${character.name}. Stay in character. Be natural and conversational. Do
         channels,
         typingCharacter,
         isLoaded,
+        isClockingIn,
 
         // Actions
         clockIn,
@@ -480,6 +538,7 @@ Reply as ${character.name}. Stay in character. Be natural and conversational. Do
         addTask,
         completeTask,
         deleteTask,
+        setPersistentWorkplace,
     };
 
     return (

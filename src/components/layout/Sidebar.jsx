@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
-import { Hash, Volume2, ChevronDown, ChevronRight, MessageSquare, ListTodo, Home, User, Clock, LogOut, Play, Square, Flame } from 'lucide-react';
+import { Hash, Volume2, ChevronDown, ChevronRight, MessageSquare, ListTodo, Home, User, Clock, LogOut, Play, Square, Flame, Settings } from 'lucide-react';
 import { useGame } from '../../context/GameContext';
 import { useAuth } from '../../context/AuthContext';
-import { CHANNELS, getDMChannels, ALL_CHARACTERS } from '../../data/coworkerTemplates';
+import { ALL_CHARACTERS } from '../../data/coworkerTemplates';
 import { getRankById } from '../../utils/levels';
 import { formatTime, formatMoney } from '../../utils/formatters';
 import Avatar from '../shared/Avatar';
 
 export default function Sidebar({ onNavigate, currentView }) {
-    const { activeChannel, setActiveChannel, shiftActive, clockIn, endShift, timeRemaining, bankBalance, rank, streak, userGoal, coworkerStates, messages } = useGame();
+    const { channels, activeChannel, setActiveChannel, shiftActive, clockIn, endShift, timeRemaining, bankBalance, rank, streak, coworkerStates, persistentWorkplace, isClockingIn } = useGame();
     const { logout } = useAuth();
     const [channelsOpen, setChannelsOpen] = useState(true);
     const [dmsOpen, setDmsOpen] = useState(true);
@@ -16,8 +16,10 @@ export default function Sidebar({ onNavigate, currentView }) {
     const [clockInGoal, setClockInGoal] = useState('');
     const [clockInDuration, setClockInDuration] = useState(30);
 
-    const dmChannels = getDMChannels();
+    const regularChannels = channels.filter(c => c.type === 'channel');
+    const dmChannels = channels.filter(c => c.type === 'dm');
     const rankData = getRankById(rank);
+    const companyName = persistentWorkplace?.companyName || 'NexTask Inc.';
 
     const handleChannelClick = (channelId) => {
         setActiveChannel(channelId);
@@ -41,7 +43,7 @@ export default function Sidebar({ onNavigate, currentView }) {
         <aside className="w-[260px] h-screen bg-[#1a1d24] border-r border-white/5 flex flex-col shrink-0 select-none">
             {/* Company Header */}
             <div className="px-4 h-14 flex items-center justify-between border-b border-white/5 shrink-0">
-                <h1 className="text-[15px] font-bold text-white tracking-tight">NexTask Inc.</h1>
+                <h1 className="text-[15px] font-bold text-white tracking-tight">{companyName}</h1>
                 <button onClick={logout} className="p-1.5 text-gray-500 hover:text-gray-300 hover:bg-white/5 rounded-lg transition-colors" title="Logout">
                     <LogOut size={16} />
                 </button>
@@ -90,11 +92,11 @@ export default function Sidebar({ onNavigate, currentView }) {
                                 className="w-20 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-blue-500/50"
                             />
                             <span className="text-[10px] text-gray-500 self-center">min</span>
-                            <button type="submit" className="flex-1 bg-green-600 hover:bg-green-500 text-white text-xs font-bold py-2 rounded-lg transition-colors">
-                                Start
+                            <button type="submit" disabled={isClockingIn} className="flex-1 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white text-xs font-bold py-2 rounded-lg transition-colors">
+                                {isClockingIn ? '...' : 'Start'}
                             </button>
                         </div>
-                        <button type="button" onClick={() => setShowClockIn(false)} className="w-full text-[10px] text-gray-500 hover:text-gray-300 transition-colors">
+                        <button type="button" disabled={isClockingIn} onClick={() => setShowClockIn(false)} className="w-full text-[10px] text-gray-500 hover:text-gray-300 disabled:opacity-50 transition-colors">
                             Cancel
                         </button>
                     </form>
@@ -115,7 +117,7 @@ export default function Sidebar({ onNavigate, currentView }) {
                     {channelsOpen ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
                     Channels
                 </button>
-                {channelsOpen && CHANNELS.map(ch => (
+                {channelsOpen && regularChannels.map(ch => (
                     <button
                         key={ch.id}
                         onClick={() => handleChannelClick(ch.id)}
@@ -183,6 +185,15 @@ export default function Sidebar({ onNavigate, currentView }) {
                 >
                     <User size={14} className="shrink-0 opacity-60" />
                     <span>Profile</span>
+                </button>
+                <button
+                    onClick={() => onNavigate('settings')}
+                    className={`flex items-center gap-2 px-3 py-1.5 mx-2 rounded-md text-sm w-[calc(100%-16px)] text-left transition-colors ${
+                        currentView === 'settings' ? 'bg-blue-600/20 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
+                    }`}
+                >
+                    <Settings size={14} className="shrink-0 opacity-60" />
+                    <span>Settings</span>
                 </button>
             </div>
 

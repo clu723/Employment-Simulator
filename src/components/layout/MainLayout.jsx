@@ -5,6 +5,7 @@ import ChatView from '../chat/ChatView';
 import TaskBoard from '../tasks/TaskBoard';
 import ProfileView from '../profile/ProfileView';
 import ApartmentView from '../profile/ApartmentView';
+import SettingsView from '../settings/SettingsView';
 
 /**
  * Main application shell: sidebar + content area.
@@ -24,6 +25,7 @@ export default function MainLayout() {
             case 'tasks': return <TaskBoard />;
             case 'profile': return <ProfileView />;
             case 'apartment': return <ApartmentView />;
+            case 'settings': return <SettingsView />;
             case 'chat':
             default: return <ChatView />;
         }

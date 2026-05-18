@@ -4,15 +4,18 @@ import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
-import { Briefcase, User, ChevronRight } from 'lucide-react';
+import { User, Sparkles, ChevronRight } from 'lucide-react';
+import { generatePersistentWorkplace } from '../systems/workplaceGenerator';
 
-const ROLE_OPTIONS = [
-    { id: 'swe', label: 'Software Engineer', emoji: '💻' },
-    { id: 'designer', label: 'Designer', emoji: '🎨' },
-    { id: 'writer', label: 'Writer / Content', emoji: '✍️' },
-    { id: 'student', label: 'Student', emoji: '📚' },
-    { id: 'business', label: 'Business / Ops', emoji: '📊' },
-    { id: 'other', label: 'Other', emoji: '🔧' },
+const VIBE_OPTIONS = [
+    "Creative Startup",
+    "Cozy Productivity Studio",
+    "Chaotic Remote Collective",
+    "Indie Collaboration Lab",
+    "Corporate Dystopia",
+    "Creator Agency",
+    "Minimalist Focus Hub",
+    "Experimental Think Tank"
 ];
 
 export default function SetupAlias() {
@@ -20,7 +23,7 @@ export default function SetupAlias() {
     const navigate = useNavigate();
     const [step, setStep] = useState(1);
     const [alias, setAlias] = useState('');
-    const [role, setRole] = useState('');
+    const [workplaceVibe, setWorkplaceVibe] = useState(VIBE_OPTIONS[0]);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
@@ -34,8 +37,8 @@ export default function SetupAlias() {
     };
 
     const handleSubmit = async () => {
-        if (!role) {
-            setError('Please select a role.');
+        if (!workplaceVibe) {
+            setError('Please select a workplace vibe.');
             return;
         }
         if (!currentUser) {
@@ -46,20 +49,27 @@ export default function SetupAlias() {
         try {
             setError('');
             setLoading(true);
+
+            // Generate persistent workplace context based on vibe
+            const persistentWorkplace = await generatePersistentWorkplace(workplaceVibe);
+
             const docRef = doc(db, 'users', currentUser.uid);
             await setDoc(docRef, {
                 companyAlias: alias.trim(),
-                role,
+                workplaceVibe,
+                persistentWorkplace,
+                projectContext: null, // Initialized as null, set during first Clock In
                 rank: 'intern',
                 bankBalance: 0,
                 netWorth: 0,
                 promotionPoints: 0,
                 streak: 0,
             }, { merge: true });
+            
             navigate('/');
         } catch (err) {
             console.error('Error saving profile:', err);
-            setError('Failed to save. Please try again.');
+            setError('Failed to set up workspace. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -78,8 +88,8 @@ export default function SetupAlias() {
                     <div className="inline-flex items-center justify-center w-14 h-14 bg-blue-600/10 rounded-2xl mb-4">
                         <span className="text-2xl">🏢</span>
                     </div>
-                    <h1 className="text-2xl font-bold text-white tracking-tight mb-1">Welcome to NexTask</h1>
-                    <p className="text-sm text-gray-500">Let's set up your employee profile</p>
+                    <h1 className="text-2xl font-bold text-white tracking-tight mb-1">Welcome to the Simulator</h1>
+                    <p className="text-sm text-gray-500">Let's generate your workplace</p>
                 </div>
 
                 {/* Step indicator */}
@@ -135,29 +145,38 @@ export default function SetupAlias() {
                             className="space-y-5"
                         >
                             <div>
-                                <h2 className="text-lg font-semibold text-white mb-1">What do you do?</h2>
-                                <p className="text-xs text-gray-500">Pick the closest match. This helps the AI tailor your tasks.</p>
+                                <h2 className="text-lg font-semibold text-white mb-1">Select Workplace Vibe</h2>
+                                <p className="text-xs text-gray-500">The AI will generate a persistent company context based on this vibe.</p>
                             </div>
-                            <div className="grid grid-cols-2 gap-2">
-                                {ROLE_OPTIONS.map(opt => (
-                                    <button
-                                        key={opt.id}
-                                        onClick={() => { setRole(opt.id); setError(''); }}
-                                        className={`flex items-center gap-2.5 p-3 rounded-xl border text-left text-sm transition-colors ${
-                                            role === opt.id
-                                                ? 'bg-blue-600/15 border-blue-500/40 text-white'
-                                                : 'bg-black/20 border-white/5 text-gray-400 hover:bg-white/5 hover:border-white/10'
-                                        }`}
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider ml-1">Vibe Preset</label>
+                                <div className="relative group">
+                                    <Sparkles className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 group-focus-within:text-blue-500 transition-colors" />
+                                    <select
+                                        value={workplaceVibe}
+                                        onChange={(e) => setWorkplaceVibe(e.target.value)}
+                                        className="w-full bg-black/30 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-blue-500/50 transition-colors appearance-none"
                                     >
-                                        <span className="text-lg">{opt.emoji}</span>
-                                        <span className="text-xs font-medium">{opt.label}</span>
-                                    </button>
-                                ))}
+                                        {VIBE_OPTIONS.map(vibe => (
+                                            <option key={vibe} value={vibe} className="bg-[#1a1d24]">
+                                                {vibe}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
+                            
+                            {loading && (
+                                <div className="text-xs text-blue-400 text-center animate-pulse py-2">
+                                    Generating your persistent workplace...
+                                </div>
+                            )}
+
                             <div className="flex gap-2">
                                 <button
                                     onClick={() => setStep(1)}
-                                    className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-white text-sm font-medium rounded-xl transition-colors"
+                                    disabled={loading}
+                                    className="flex-1 py-3 bg-white/5 hover:bg-white/10 disabled:opacity-50 text-white text-sm font-medium rounded-xl transition-colors"
                                 >
                                     Back
                                 </button>
@@ -165,10 +184,10 @@ export default function SetupAlias() {
                                     whileHover={{ scale: 1.01 }}
                                     whileTap={{ scale: 0.99 }}
                                     onClick={handleSubmit}
-                                    disabled={loading || !role}
+                                    disabled={loading}
                                     className="flex-[2] py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-colors"
                                 >
-                                    {loading ? 'Setting up...' : 'Start Working'}
+                                    {loading ? 'Setting up...' : 'Start Simulator'}
                                 </motion.button>
                             </div>
                         </motion.div>

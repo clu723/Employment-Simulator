@@ -6,12 +6,12 @@
 export const SCHEDULED_EVENTS = [
     {
         id: 'morning_standup',
-        name: 'Morning Standup',
+        name: 'Morning Check-in',
         trigger: 'scheduled',
         delayAfterShiftStart: 10_000, // 10s after clock-in
         channel: 'general',
         participants: ['manager_davis', 'all'],
-        promptContext: 'Start a brief morning standup. Ask the team what they are working on today. Be brisk.',
+        promptContext: 'Start a brief morning check-in. Ask the team what they are working on today. Be brisk.',
         repeats: false,
     },
     {
@@ -41,7 +41,7 @@ export const RANDOM_EVENTS = [
         id: 'coworker_help',
         name: 'Coworker Offers Help',
         probability: 0.08,
-        channel: 'team-chat',
+        channel: 'team-chat', // will fallback to the dynamic equivalent if needed
         participantPool: ['sarah_chen', 'mike_johnson'],
         promptContext: 'Offer to help a teammate with their current work. Be natural and in-character.',
     },
@@ -63,11 +63,11 @@ export const RANDOM_EVENTS = [
     },
     {
         id: 'kevin_announcement',
-        name: 'PM Update',
+        name: 'Strategy Update',
         probability: 0.05,
         channel: 'general',
         participantPool: ['kevin_park'],
-        promptContext: 'Share a product or sprint update with the team. Use some buzzwords. Be enthusiastic.',
+        promptContext: 'Share a strategy or planning update with the team. Use some buzzwords. Be enthusiastic.',
     },
     {
         id: 'sarah_vent',
@@ -75,7 +75,7 @@ export const RANDOM_EVENTS = [
         probability: 0.04,
         channel: 'team-chat',
         participantPool: ['sarah_chen'],
-        promptContext: 'Vent about something mildly frustrating at work — code quality, a PR review, or a meeting that could have been an email. Be sarcastic but not mean.',
+        promptContext: 'Vent about something mildly frustrating at work — poor quality work from someone else, a missed deadline, or a meeting that could have been an email. Be sarcastic but not mean.',
     },
     {
         id: 'company_announcement',
