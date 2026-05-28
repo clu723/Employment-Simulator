@@ -16,8 +16,6 @@ Generate a realistic, immersive company environment that fits this vibe.
 Assign BROAD, GENERAL baseline job titles (e.g. "Creative Lead", "Specialist", "Operations", not specific like "React Dev") and a fitting emoji for each of the following coworkers based on their personality archetype:
 ${coworkerList}
 
-Also generate 3-4 persistent slack-style channel names (starting with #) relevant to this company culture (e.g. #general, #announcements, #watercooler).
-
 Output strictly as a JSON object with this exact structure:
 {
     "companyName": "String",
@@ -28,10 +26,7 @@ Output strictly as a JSON object with this exact structure:
             "title": "Broad Job Title",
             "emoji": "🏢"
         }
-    },
-    "persistentChannels": [
-        { "id": "channel_1_name", "name": "channel_1_name", "description": "Channel purpose" }
-    ]
+    }
 }
 
 DO NOT include markdown formatting, backticks, or any text outside of the JSON object. Just the raw JSON.`;
@@ -49,16 +44,12 @@ DO NOT include markdown formatting, backticks, or any text outside of the JSON o
             }
         }
 
-        if (!result.persistentChannels || result.persistentChannels.length === 0) {
-            result.persistentChannels = [{ id: 'general', name: 'general', description: 'Company-wide announcements' }];
-        }
-
-        result.persistentChannels = result.persistentChannels.map(ch => ({
-            ...ch,
-            id: ch.id.replace(/^#/, ''),
-            name: ch.name.replace(/^#/, ''),
-            type: 'channel'
-        }));
+        // Hardcode the primary channels as requested
+        result.persistentChannels = [
+            { id: 'general', name: 'general', type: 'channel', description: 'Company-wide discussion' },
+            { id: 'team-chat', name: 'team-chat', type: 'channel', description: 'Team collaboration and chat' },
+            { id: 'announcements', name: 'announcements', type: 'channel', description: 'Official announcements' }
+        ];
 
         return result;
     } catch (err) {
@@ -69,7 +60,9 @@ DO NOT include markdown formatting, backticks, or any text outside of the JSON o
             culture: "Standard 9-to-5",
             baselineRoles: ALL_CHARACTERS.reduce((acc, char) => ({ ...acc, [char.id]: { title: 'Colleague', emoji: '🧑‍💼' } }), {}),
             persistentChannels: [
-                { id: 'general', name: 'general', type: 'channel', description: 'General chatter' }
+                { id: 'general', name: 'general', type: 'channel', description: 'Company-wide discussion' },
+                { id: 'team-chat', name: 'team-chat', type: 'channel', description: 'Team collaboration and chat' },
+                { id: 'announcements', name: 'announcements', type: 'channel', description: 'Official announcements' }
             ]
         };
     }
@@ -96,17 +89,12 @@ For each coworker, define their TEMPORARY COLLABORATION ROLE or context for this
 Coworkers:
 ${coworkerList}
 
-Also generate 1-2 temporary project-specific channels.
-
 Output strictly as a JSON object with this exact structure:
 {
     "projectName": "String (Short name for the project)",
     "temporaryRoleContexts": {
         "coworker_id": "String (e.g. Acts as technical reviewer)"
-    },
-    "projectChannels": [
-        { "id": "channel_name", "name": "channel_name", "description": "Channel purpose" }
-    ]
+    }
 }
 
 DO NOT include markdown formatting, backticks, or any text outside of the JSON object. Just the raw JSON.`;
@@ -123,13 +111,7 @@ DO NOT include markdown formatting, backticks, or any text outside of the JSON o
             }
         }
 
-        if (!result.projectChannels) result.projectChannels = [];
-        result.projectChannels = result.projectChannels.map(ch => ({
-            ...ch,
-            id: ch.id.replace(/^#/, ''),
-            name: ch.name.replace(/^#/, ''),
-            type: 'channel'
-        }));
+        result.projectChannels = [];
 
         return result;
     } catch (err) {

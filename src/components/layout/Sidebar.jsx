@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Hash, Volume2, ChevronDown, ChevronRight, MessageSquare, ListTodo, Home, User, Clock, LogOut, Play, Square, Flame, Settings } from 'lucide-react';
+import { Hash, Volume2, ChevronDown, ChevronRight, MessageSquare, ListTodo, Home, User, Clock, LogOut, Play, Square, Flame, Settings, Trophy } from 'lucide-react';
 import { useGame } from '../../context/GameContext';
 import { useAuth } from '../../context/AuthContext';
 import { ALL_CHARACTERS } from '../../data/coworkerTemplates';
@@ -167,6 +167,15 @@ export default function Sidebar({ onNavigate, currentView }) {
                 >
                     <ListTodo size={14} className="shrink-0 opacity-60" />
                     <span>Tasks</span>
+                </button>
+                <button
+                    onClick={() => onNavigate('leaderboard')}
+                    className={`flex items-center gap-2 px-3 py-1.5 mx-2 rounded-md text-sm w-[calc(100%-16px)] text-left transition-colors ${
+                        currentView === 'leaderboard' ? 'bg-blue-600/20 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
+                    }`}
+                >
+                    <Trophy size={14} className="shrink-0 opacity-60 text-yellow-500" />
+                    <span>Leaderboard</span>
                 </button>
                 <button
                     onClick={() => onNavigate('apartment')}

@@ -19,22 +19,10 @@ const APARTMENT_ITEMS = [
 ];
 
 export default function ApartmentView() {
-    const { bankBalance } = useGame();
-    // For now, owned items are stored in localStorage. Will migrate to Firestore in Phase 3.
-    const [ownedItems, setOwnedItems] = React.useState(() => {
-        try {
-            return JSON.parse(localStorage.getItem('apartment_items') || '["basic_desk"]');
-        } catch {
-            return ['basic_desk'];
-        }
-    });
+    const { bankBalance, apartmentItems, buyApartmentItem } = useGame();
 
     const buyItem = (item) => {
-        if (ownedItems.includes(item.id) || bankBalance < item.cost) return;
-        const updated = [...ownedItems, item.id];
-        setOwnedItems(updated);
-        localStorage.setItem('apartment_items', JSON.stringify(updated));
-        // Note: bankBalance deduction will be wired to GameContext in Phase 3
+        buyApartmentItem(item);
     };
 
     return (
@@ -49,18 +37,18 @@ export default function ApartmentView() {
                 {/* Current apartment visualization */}
                 <div className="bg-[#1e2028] border border-white/5 rounded-2xl p-6 mb-6 text-center">
                     <div className="text-4xl mb-3 space-x-2">
-                        {ownedItems.map(id => {
+                        {apartmentItems.map(id => {
                             const item = APARTMENT_ITEMS.find(i => i.id === id);
                             return item ? <span key={id} title={item.name}>{item.emoji}</span> : null;
                         })}
                     </div>
-                    <p className="text-xs text-gray-500">Your workspace • {ownedItems.length} items</p>
+                    <p className="text-xs text-gray-500">Your workspace • {apartmentItems.length} items</p>
                 </div>
 
                 {/* Shop */}
                 <h3 className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-3 px-1">Upgrades</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {APARTMENT_ITEMS.filter(item => !ownedItems.includes(item.id)).map(item => {
+                    {APARTMENT_ITEMS.filter(item => !apartmentItems.includes(item.id)).map(item => {
                         const canAfford = bankBalance >= item.cost;
                         return (
                             <div key={item.id} className="bg-[#1e2028] border border-white/5 rounded-xl p-3 flex items-center gap-3">
@@ -86,11 +74,11 @@ export default function ApartmentView() {
                 </div>
 
                 {/* Owned items list */}
-                {ownedItems.length > 1 && (
+                {apartmentItems.length > 1 && (
                     <>
                         <h3 className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-3 mt-6 px-1">Owned</h3>
                         <div className="space-y-1">
-                            {ownedItems.map(id => {
+                            {apartmentItems.map(id => {
                                 const item = APARTMENT_ITEMS.find(i => i.id === id);
                                 if (!item) return null;
                                 return (

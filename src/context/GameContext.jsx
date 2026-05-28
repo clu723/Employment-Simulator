@@ -8,6 +8,7 @@ import { generateText } from '../systems/aiClient';
 import { getRankById, getNextRank, canPromote, RANKS } from '../utils/levels';
 import { buildCoworkerPrompt, buildCoworkerDMPrompt } from '../systems/promptBuilder';
 import { generateProjectContext } from '../systems/workplaceGenerator';
+import { summarizeMemory } from '../systems/memorySystem';
 
 const GameContext = createContext(null);
 
@@ -43,6 +44,12 @@ function createInitialState() {
         // Tasks
         tasks: [],
         tasksCompletedTotal: 0,
+        
+        // Apartment
+        apartmentItems: ['basic_desk'],
+
+        // Meta
+        hasCompletedOnboarding: false,
     };
 }
 
@@ -118,6 +125,8 @@ export function GameProvider({ children }) {
                         workplaceVibe: data.workplaceVibe || '',
                         persistentWorkplace: data.persistentWorkplace || null,
                         projectContext: data.projectContext || null,
+                        apartmentItems: data.apartmentItems || ['basic_desk'],
+                        hasCompletedOnboarding: data.hasCompletedOnboarding || false,
                     }));
                 } else {
                     setState(prev => ({
@@ -152,6 +161,8 @@ export function GameProvider({ children }) {
                     workplaceVibe: state.workplaceVibe,
                     persistentWorkplace: state.persistentWorkplace,
                     projectContext: state.projectContext,
+                    apartmentItems: state.apartmentItems,
+                    hasCompletedOnboarding: state.hasCompletedOnboarding,
                     score: state.netWorth
                 }, { merge: true });
             } catch (err) {
@@ -159,7 +170,7 @@ export function GameProvider({ children }) {
             }
         }, 2000);
         return () => clearTimeout(saveTimeoutRef.current);
-    }, [state.rank, state.bankBalance, state.netWorth, state.promotionPoints, state.streak, state.lastShiftDate, state.tasksCompletedTotal, state.workplaceVibe, state.persistentWorkplace, state.projectContext, currentUser, isLoaded]);
+    }, [state.rank, state.bankBalance, state.netWorth, state.promotionPoints, state.streak, state.lastShiftDate, state.tasksCompletedTotal, state.workplaceVibe, state.persistentWorkplace, state.projectContext, state.apartmentItems, state.hasCompletedOnboarding, currentUser, isLoaded]);
 
     // ── Shift Timer ──
     useEffect(() => {
@@ -312,6 +323,7 @@ export function GameProvider({ children }) {
             const character = getCharacterById(characterId);
             if (character && !isGeneratingRef.current) {
                 isGeneratingRef.current = true;
+                await new Promise(r => setTimeout(r, 1500 + Math.random() * 5000));
                 setTypingCharacter({ id: character.id, channelId });
 
                 try {
@@ -333,7 +345,7 @@ export function GameProvider({ children }) {
                         behaviorMode: 'direct_collaboration'
                     });
 
-                    await new Promise(r => setTimeout(r, 1000 + Math.random() * 2000));
+                    await new Promise(r => setTimeout(r, 3000 + Math.random() * 3000));
                     const response = await generateText(prompt);
 
                     if (response) {
@@ -356,28 +368,26 @@ export function GameProvider({ children }) {
             }
         }
 
-        // If team-chat or general, small chance of coworker chiming in
+        // If team-chat or general, coworker chimes in after a random delay
         if (!channelId.startsWith('dm_') && !isGeneratingRef.current) {
-            if (Math.random() < 0.3) {
-                const randomCoworker = ALL_CHARACTERS[Math.floor(Math.random() * ALL_CHARACTERS.length)];
-                setTimeout(() => {
-                    triggerEvent({
-                        id: 'reply_to_user',
-                        channel: channelId,
-                        selectedParticipant: randomCoworker.id,
-                        latestUserMessage: text,
-                        behaviorMode: 'casual_banter',
-                        promptContext: `React naturally to what the user said in the context of the chat. You may agree, joke, help, or be dismissive based on your personality.`,
-                    });
-                }, 3000 + Math.random() * 5000);
-            }
+            const randomCoworker = ALL_CHARACTERS[Math.floor(Math.random() * ALL_CHARACTERS.length)];
+            setTimeout(() => {
+                triggerEvent({
+                    id: 'reply_to_user',
+                    channel: channelId,
+                    selectedParticipant: randomCoworker.id,
+                    latestUserMessage: text,
+                    behaviorMode: 'casual_banter',
+                    promptContext: `React naturally to what the user said in the context of the chat. You may agree, joke, help, or be dismissive based on your personality.`,
+                });
+            }, 5000 + Math.random() * 25000);
         }
     }, [currentUser, state.coworkerStates, state.messages, state.tasks, state.userGoal, state.persistentWorkplace, state.projectContext, addMessage, triggerEvent]);
 
-    // ── Clock In ──
     const clockIn = useCallback(async (goal, duration) => {
         setIsClockingIn(true);
         const now = Date.now();
+        const today = new Date().toDateString();
         
         let newProjectContext = state.projectContext;
         
@@ -386,10 +396,16 @@ export function GameProvider({ children }) {
             newProjectContext = await generateProjectContext(goal, state.persistentWorkplace);
         }
 
+        const isNewDay = state.lastShiftDate !== today && state.lastShiftDate !== null;
+        let rentDeducted = 0;
+
+        if (isNewDay) {
+            rentDeducted = 100 + ((state.apartmentItems.length - 1) * 50);
+        }
+
         setState(prev => {
             // Streak logic
             let newStreak = prev.streak;
-            const today = new Date().toDateString();
             if (prev.lastShiftDate !== today) {
                 const yesterday = new Date();
                 yesterday.setDate(yesterday.getDate() - 1);
@@ -417,29 +433,188 @@ export function GameProvider({ children }) {
                 userGoal: goal,
                 streak: newStreak,
                 lastShiftDate: today,
+                bankBalance: prev.bankBalance - rentDeducted,
                 coworkerStates: updatedCoworkerStates,
                 projectContext: newProjectContext,
+                hasCompletedOnboarding: true,
             };
         });
 
-        // Welcome message
         const defaultChannel = generatedChannels[0]?.id || 'general';
+
+        if (!state.hasCompletedOnboarding) {
+            // First time onboarding tutorial
+            addMessage(defaultChannel, {
+                text: `Welcome to the company network. I've set up your profile and your virtual apartment.`,
+                senderId: 'system',
+                senderName: 'System',
+                senderAvatar: '🏢',
+                type: 'system',
+            });
+            setTimeout(() => {
+                addMessage(defaultChannel, {
+                    text: `Your goal is to complete tasks to earn promotions and salary. You can use your salary to upgrade your apartment and increase your net worth.`,
+                    senderId: 'system',
+                    senderName: 'System',
+                    senderAvatar: '🏢',
+                    type: 'system',
+                });
+            }, 2000);
+            setTimeout(() => {
+                addMessage(defaultChannel, {
+                    text: `Your coworkers are online. You can chat with them in the general channel or click their names to DM them. Good luck.`,
+                    senderId: 'system',
+                    senderName: 'System',
+                    senderAvatar: '🏢',
+                    type: 'system',
+                });
+            }, 4000);
+        }
+
+        if (isNewDay && rentDeducted > 0) {
+            addMessage(defaultChannel, {
+                text: `Daily living expenses of $${rentDeducted} have been deducted from your account.`,
+                senderId: 'system',
+                senderName: 'System',
+                senderAvatar: '🏢',
+                type: 'system',
+            });
+        }
+
+        // Welcome message & First Task Assignment via LLM
         const managerRole = state.persistentWorkplace?.baselineRoles?.manager_davis;
+        const managerChar = getCharacterById('manager_davis');
         
-        addMessage(defaultChannel, {
-            text: `Good to have you in today. Let's make it count.`,
-            senderId: 'manager_davis',
-            senderName: 'Patricia Davis',
-            senderAvatar: managerRole?.emoji || '👩‍💼',
-            senderRole: managerRole?.title || 'Manager',
-            type: 'coworker',
-        });
+        try {
+            const prompt = `You are Patricia Davis, the manager. The user just clocked in with the goal: "${goal}".
+Give a short 1-2 sentence welcome message acknowledging their goal, and assign them their FIRST specific task to get started.
+Format your response exactly like this:
+Welcome Message
+TASK: First specific task description`;
+
+            const response = await generateText(prompt);
+            let msgText = "Good to have you in today. Let's make it count.";
+            let taskText = "Review previous work";
+
+            if (response && response.includes("TASK:")) {
+                const parts = response.split("TASK:");
+                msgText = parts[0].trim();
+                taskText = parts[1].trim();
+            } else if (response) {
+                msgText = response;
+                taskText = `Get started on: ${goal}`;
+            }
+
+            addMessage(defaultChannel, {
+                text: msgText,
+                senderId: 'manager_davis',
+                senderName: 'Patricia Davis',
+                senderAvatar: managerRole?.emoji || '👩‍💼',
+                senderRole: managerRole?.title || 'Manager',
+                type: 'coworker',
+            });
+
+            // Automatically add the first task
+            const task = {
+                id: Date.now() + Math.random(),
+                title: taskText,
+                difficulty: 1,
+                category: 'general',
+                completed: false,
+                createdAt: Date.now(),
+            };
+            setState(prev => ({ ...prev, tasks: [...prev.tasks, task] }));
+
+        } catch (err) {
+            console.error("Failed to generate start task:", err);
+            addMessage(defaultChannel, {
+                text: `Good to have you in today. Let's make it count.`,
+                senderId: 'manager_davis',
+                senderName: 'Patricia Davis',
+                senderAvatar: managerRole?.emoji || '👩‍💼',
+                senderRole: managerRole?.title || 'Manager',
+                type: 'coworker',
+            });
+            const task = {
+                id: Date.now() + Math.random(),
+                title: `Get started on: ${goal}`,
+                difficulty: 1,
+                category: 'general',
+                completed: false,
+                createdAt: Date.now(),
+            };
+            setState(prev => ({ ...prev, tasks: [...prev.tasks, task] }));
+        }
         
         setIsClockingIn(false);
-    }, [addMessage, generatedChannels, state.persistentWorkplace, state.projectContext]);
+    }, [addMessage, generatedChannels, state.persistentWorkplace, state.projectContext, state.lastShiftDate, state.apartmentItems, state.bankBalance]);
 
     // ── Clock Out / End Shift ──
     const endShift = useCallback(() => {
+        let promotedTo = null;
+        
+        // --- Memory Summarization ---
+        // Capture messages from this shift to summarize
+        const shiftStart = state.shiftStartTime;
+        const recentMessages = [];
+        Object.values(state.messages).forEach(channelMsgs => {
+            channelMsgs.forEach(msg => {
+                if (msg.timestamp >= shiftStart) {
+                    recentMessages.push(msg);
+                }
+            });
+        });
+
+        // Group by character
+        const charInteractions = {};
+        recentMessages.forEach(msg => {
+            // Include messages sent by the character
+            if (msg.type === 'coworker' && msg.senderId) {
+                if (!charInteractions[msg.senderId]) charInteractions[msg.senderId] = [];
+                charInteractions[msg.senderId].push(msg);
+            }
+            // Include user messages that might be in a DM with them
+            if (msg.type === 'user') {
+                // If this message was in a DM, associate it with that character
+                // We'd have to know the channel ID. But simple approximation: just add user messages to all characters they recently interacted with in DMs.
+                // For a more accurate way, we can check if it's a DM channel:
+            }
+        });
+        
+        // A better approach to group: iterate over characters, find their DMs, or general messages they were part of
+        for (const char of ALL_CHARACTERS) {
+            const dmChannel = `dm_${char.id}`;
+            const msgsInDM = (state.messages[dmChannel] || []).filter(m => m.timestamp >= shiftStart);
+            const msgsInGeneral = (state.messages['general'] || []).filter(m => m.timestamp >= shiftStart && (m.senderId === char.id || m.senderId === 'user'));
+            
+            const relevantMsgs = [...msgsInDM, ...msgsInGeneral].sort((a, b) => a.timestamp - b.timestamp);
+            
+            // Only summarize if they actually spoke or the user spoke to them directly in DM
+            if (relevantMsgs.length > 0 && msgsInDM.length > 0) {
+                const prevSummary = state.coworkerStates[char.id]?.memorySummary || '';
+                
+                // Fire and forget the summarization
+                summarizeMemory(char.id, relevantMsgs, prevSummary, state.persistentWorkplace)
+                    .then(newSummary => {
+                        setState(prev => {
+                            if (!prev.coworkerStates[char.id]) return prev;
+                            return {
+                                ...prev,
+                                coworkerStates: {
+                                    ...prev.coworkerStates,
+                                    [char.id]: {
+                                        ...prev.coworkerStates[char.id],
+                                        memorySummary: newSummary
+                                    }
+                                }
+                            };
+                        });
+                    })
+                    .catch(console.error);
+            }
+        }
+        // -----------------------------
+
         setState(prev => {
             const updatedCoworkerStates = { ...prev.coworkerStates };
             for (const char of ALL_CHARACTERS) {
@@ -453,17 +628,43 @@ export function GameProvider({ children }) {
             const streakBonus = 1 + (prev.streak * 0.1);
             const shiftSalary = Math.floor(rank.salary * streakBonus * (prev.shiftDuration / 60));
 
+            // Promotion Logic
+            let newRankId = prev.rank;
+            let newPromotionPoints = prev.promotionPoints;
+            const nextRank = getNextRank(prev.rank);
+
+            if (nextRank && prev.promotionPoints >= nextRank.promotionThreshold) {
+                newRankId = nextRank.id;
+                newPromotionPoints = prev.promotionPoints - nextRank.promotionThreshold;
+                promotedTo = nextRank;
+            }
+
             return {
                 ...prev,
                 shiftActive: false,
                 timeRemaining: 0,
                 bankBalance: prev.bankBalance + shiftSalary,
                 netWorth: prev.netWorth + shiftSalary,
+                rank: newRankId,
+                promotionPoints: newPromotionPoints,
                 coworkerStates: updatedCoworkerStates,
             };
         });
 
         const defaultChannel = generatedChannels[0]?.id || 'general';
+        
+        if (promotedTo) {
+            const managerRole = state.persistentWorkplace?.baselineRoles?.manager_davis;
+            addMessage(defaultChannel, {
+                text: `Attention everyone: Please congratulate ${currentUser?.displayName?.split(' ')[0] || 'our colleague'} on their promotion to ${promotedTo.title}! Well deserved.`,
+                senderId: 'manager_davis',
+                senderName: 'Patricia Davis',
+                senderAvatar: managerRole?.emoji || '👩‍💼',
+                senderRole: managerRole?.title || 'Manager',
+                type: 'coworker',
+            });
+        }
+
         addMessage(defaultChannel, {
             text: `Shift complete. Great work today.`,
             senderId: 'system',
@@ -471,7 +672,7 @@ export function GameProvider({ children }) {
             senderAvatar: '🏢',
             type: 'system',
         });
-    }, [addMessage, generatedChannels]);
+    }, [addMessage, generatedChannels, state.persistentWorkplace, currentUser]);
 
     // ── Task Management ──
     const addTask = useCallback((title, difficulty = 1, category = 'general') => {
@@ -520,6 +721,21 @@ export function GameProvider({ children }) {
         }));
     }, []);
 
+    // ── Apartment Management ──
+    const buyApartmentItem = useCallback((item) => {
+        setState(prev => {
+            if (prev.apartmentItems.includes(item.id) || prev.bankBalance < item.cost) {
+                return prev;
+            }
+            return {
+                ...prev,
+                bankBalance: prev.bankBalance - item.cost,
+                // Notice netWorth is NOT reduced, as they retain the asset value
+                apartmentItems: [...prev.apartmentItems, item.id],
+            };
+        });
+    }, []);
+
     // ── Context Value ──
     const value = {
         ...state,
@@ -539,6 +755,7 @@ export function GameProvider({ children }) {
         completeTask,
         deleteTask,
         setPersistentWorkplace,
+        buyApartmentItem,
     };
 
     return (

@@ -40,7 +40,7 @@ export const RANDOM_EVENTS = [
     {
         id: 'coworker_help',
         name: 'Coworker Offers Help',
-        probability: 0.08,
+        probability: 0.8,
         channel: 'team-chat', // will fallback to the dynamic equivalent if needed
         participantPool: ['sarah_chen', 'mike_johnson'],
         promptContext: 'Offer to help a teammate with their current work. Be natural and in-character.',
@@ -48,7 +48,7 @@ export const RANDOM_EVENTS = [
     {
         id: 'office_gossip',
         name: 'Office Gossip',
-        probability: 0.06,
+        probability: 0.6,
         channel: 'team-chat',
         participantPool: ['mike_johnson', 'jordan_the_intern'],
         promptContext: 'Share some funny or mildly dramatic office gossip. Maybe about a rumor, a meeting, or something the manager said. Keep it lighthearted.',
@@ -64,7 +64,7 @@ export const RANDOM_EVENTS = [
     {
         id: 'kevin_announcement',
         name: 'Strategy Update',
-        probability: 0.05,
+        probability: 0.5,
         channel: 'general',
         participantPool: ['kevin_park'],
         promptContext: 'Share a strategy or planning update with the team. Use some buzzwords. Be enthusiastic.',
@@ -72,7 +72,7 @@ export const RANDOM_EVENTS = [
     {
         id: 'sarah_vent',
         name: 'Sarah Vents',
-        probability: 0.04,
+        probability: 0.4,
         channel: 'team-chat',
         participantPool: ['sarah_chen'],
         promptContext: 'Vent about something mildly frustrating at work — poor quality work from someone else, a missed deadline, or a meeting that could have been an email. Be sarcastic but not mean.',
@@ -80,7 +80,7 @@ export const RANDOM_EVENTS = [
     {
         id: 'company_announcement',
         name: 'Company Announcement',
-        probability: 0.02,
+        probability: 0.2,
         channel: 'announcements',
         participantPool: ['manager_davis'],
         promptContext: 'Make an official company announcement. Could be about a new policy, team achievement, upcoming event, or a slightly dystopian corporate initiative. Keep it brief and professional.',

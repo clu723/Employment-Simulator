@@ -5,6 +5,7 @@ import ChatView from '../chat/ChatView';
 import TaskBoard from '../tasks/TaskBoard';
 import ProfileView from '../profile/ProfileView';
 import ApartmentView from '../profile/ApartmentView';
+import LeaderboardView from '../profile/LeaderboardView';
 import SettingsView from '../settings/SettingsView';
 
 /**
@@ -25,6 +26,7 @@ export default function MainLayout() {
             case 'tasks': return <TaskBoard />;
             case 'profile': return <ProfileView />;
             case 'apartment': return <ApartmentView />;
+            case 'leaderboard': return <LeaderboardView />;
             case 'settings': return <SettingsView />;
             case 'chat':
             default: return <ChatView />;

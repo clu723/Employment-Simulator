@@ -5,10 +5,11 @@ import { formatMoney } from '../../utils/formatters';
 import { Trophy, Flame, Star, TrendingUp, Briefcase } from 'lucide-react';
 import Avatar from '../shared/Avatar';
 import { useAuth } from '../../context/AuthContext';
+import { ALL_CHARACTERS } from '../../data/coworkerTemplates';
 
 export default function ProfileView() {
     const { currentUser } = useAuth();
-    const { rank, bankBalance, netWorth, promotionPoints, streak, tasksCompletedTotal } = useGame();
+    const { rank, bankBalance, netWorth, promotionPoints, streak, tasksCompletedTotal, coworkerStates, persistentWorkplace } = useGame();
     const rankData = getRankById(rank);
     const nextRank = getNextRank(rank);
 
@@ -104,6 +105,42 @@ export default function ProfileView() {
                             <span className="text-sm font-bold text-orange-400 font-mono">+{streak * 10}%</span>
                         </div>
                     )}
+                </div>
+
+                {/* Network / Reputation */}
+                <div className="bg-[#1e2028] border border-white/5 rounded-2xl p-6 mt-6">
+                    <h4 className="text-xs uppercase tracking-wider font-bold text-gray-500 mb-4">Network Reputation</h4>
+                    <div className="space-y-4">
+                        {ALL_CHARACTERS.map(char => {
+                            const score = coworkerStates?.[char.id]?.relationshipScore ?? 50;
+                            const roleInfo = persistentWorkplace?.baselineRoles?.[char.id] || { title: 'Employee', emoji: '🧑' };
+                            
+                            // Determine color based on score
+                            let color = 'bg-gray-500';
+                            if (score >= 80) color = 'bg-green-500';
+                            else if (score >= 60) color = 'bg-blue-500';
+                            else if (score >= 40) color = 'bg-yellow-500';
+                            else color = 'bg-red-500';
+
+                            return (
+                                <div key={char.id} className="flex items-center gap-3">
+                                    <span className="text-2xl" title={roleInfo.title}>{roleInfo.emoji}</span>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="text-sm font-medium text-white truncate">{char.name}</span>
+                                            <span className="text-xs font-mono text-gray-400">{score}/100</span>
+                                        </div>
+                                        <div className="w-full bg-white/5 rounded-full h-1.5">
+                                            <div
+                                                className={`h-1.5 rounded-full ${color} transition-all duration-500`}
+                                                style={{ width: `${Math.min(100, Math.max(0, score))}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
         </div>
