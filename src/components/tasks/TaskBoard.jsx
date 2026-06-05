@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { Plus, X, CheckCircle2, Circle, Trash2, Star } from 'lucide-react';
 import { useGame } from '../../context/GameContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import TaskVerificationModal from '../TaskVerificationModal';
 
 export default function TaskBoard() {
-    const { tasks, addTask, completeTask, deleteTask } = useGame();
+    const { tasks, addTask, completeTaskWithProof, completeTaskWithoutProof, verifyScreenshot, getVerificationResult, deleteTask } = useGame();
     const [showAdd, setShowAdd] = useState(false);
     const [newTitle, setNewTitle] = useState('');
     const [newDifficulty, setNewDifficulty] = useState(1);
+    const [selectedTask, setSelectedTask] = useState(null);
 
     const activeTasks = tasks.filter(t => !t.completed);
     const completedTasks = tasks.filter(t => t.completed);
@@ -104,7 +106,7 @@ export default function TaskBoard() {
                             exit={{ opacity: 0, scale: 0.95 }}
                             className="group flex items-center gap-3 bg-[#1e2028] border border-white/5 rounded-xl p-3 hover:border-white/10 transition-colors"
                         >
-                            <button onClick={() => completeTask(task.id)} className="text-gray-500 hover:text-green-400 transition-colors shrink-0">
+                            <button onClick={() => setSelectedTask(task)} className="text-gray-500 hover:text-green-400 transition-colors shrink-0">
                                 <Circle size={20} />
                             </button>
                             <div className="flex-1 min-w-0">
@@ -141,6 +143,16 @@ export default function TaskBoard() {
                     </div>
                 )}
             </div>
+
+            <TaskVerificationModal
+                task={selectedTask}
+                isOpen={!!selectedTask}
+                onClose={() => setSelectedTask(null)}
+                onVerify={verifyScreenshot}
+                onBypass={completeTaskWithoutProof}
+                onCompleteWithProof={completeTaskWithProof}
+                getVerificationResult={getVerificationResult}
+            />
         </div>
     );
 }

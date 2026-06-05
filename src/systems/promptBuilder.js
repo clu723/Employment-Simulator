@@ -13,6 +13,7 @@ function buildBasePrompt({
     activeTasks,
     latestUserMessage,
     behaviorMode,
+    hasImages,
 }) {
     const baselineRoleInfo = persistentWorkplace?.baselineRoles?.[character.id] || { title: 'Employee' };
     const tempRoleContext = projectContext?.temporaryRoleContexts?.[character.id] || 'General collaborator';
@@ -32,6 +33,10 @@ function buildBasePrompt({
     const goodExample = character.examples?.good || '"Here is a direct answer to your question."';
     const badExample = character.examples?.bad || '"Let\'s leverage our synergy to align on this objective!"';
 
+    const imageContextBlock = hasImages
+        ? `\n[IMAGE CONTEXT]\nThe user attached an image relevant to the current discussion.\nAnalyze and react to the image naturally as part of your response.\nProvide specific, useful feedback based on what you see — do NOT just acknowledge it generically.\n`
+        : '';
+
     return `[IDENTITY]
 You are ${character.name}, working as a ${baselineRoleInfo.title} at ${companyName}.
 Workplace Culture: ${culture}
@@ -43,7 +48,7 @@ User's immediate goal: "${userGoal || 'Working on general tasks'}"
 Mood: ${coworkerState?.mood || character.defaultMood}
 ${coworkerState?.memorySummary ? `Recent memory: ${coworkerState.memorySummary}` : ''}
 ${taskContext}
-
+${imageContextBlock}
 [RECENT CONVERSATION]
 ${recentMsgs ? recentMsgs : '(No recent conversation)'}
 
@@ -86,7 +91,8 @@ export function buildCoworkerPrompt({
     recentMsgs,
     userGoal,
     latestUserMessage,
-    behaviorMode
+    behaviorMode,
+    hasImages
 }) {
     return buildBasePrompt({
         character,
@@ -96,7 +102,8 @@ export function buildCoworkerPrompt({
         recentMsgs,
         userGoal,
         latestUserMessage,
-        behaviorMode
+        behaviorMode,
+        hasImages
     });
 }
 
@@ -109,7 +116,8 @@ export function buildCoworkerDMPrompt({
     userGoal,
     activeTasks,
     latestUserMessage,
-    behaviorMode
+    behaviorMode,
+    hasImages
 }) {
     return buildBasePrompt({
         character,
@@ -120,6 +128,7 @@ export function buildCoworkerDMPrompt({
         userGoal,
         activeTasks,
         latestUserMessage,
-        behaviorMode
+        behaviorMode,
+        hasImages
     });
 }

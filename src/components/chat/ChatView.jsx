@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useGame } from '../../context/GameContext';
 import { getCharacterById } from '../../data/coworkerTemplates';
 import TopBar from '../layout/TopBar';
@@ -8,10 +8,18 @@ import TypingIndicator from './TypingIndicator';
 
 /**
  * Main chat view — assembles TopBar, MessageList, TypingIndicator, and MessageInput.
+ * Marks the active channel as read whenever activeChannel changes.
  */
 export default function ChatView() {
-    const { activeChannel, messages, sendMessage, typingCharacter } = useGame();
+    const { activeChannel, messages, sendMessage, typingCharacter, markChannelRead } = useGame();
     const channelMessages = messages[activeChannel] || [];
+
+    // Mark channel as read when it becomes active
+    useEffect(() => {
+        if (activeChannel) {
+            markChannelRead(activeChannel);
+        }
+    }, [activeChannel, markChannelRead]);
 
     // Resolve typing character info for indicator
     const typingInfo = typingCharacter && typingCharacter.channelId === activeChannel

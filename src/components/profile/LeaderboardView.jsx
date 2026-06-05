@@ -63,7 +63,7 @@ export default function LeaderboardView() {
                         {leaders.map((user, index) => {
                             const isCurrentUser = currentUser && user.id === currentUser.uid;
                             const rankData = getRankById(user.rank || 'intern');
-                            const displayName = user.email ? user.email.split('@')[0] : 'Unknown';
+                            const displayName = user.companyAlias || 'Anonymous Employee';
 
                             let RankIcon = null;
                             if (index === 0) RankIcon = <Trophy size={16} className="text-yellow-400" />;

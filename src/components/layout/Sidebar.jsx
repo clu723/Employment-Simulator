@@ -8,7 +8,7 @@ import { formatTime, formatMoney } from '../../utils/formatters';
 import Avatar from '../shared/Avatar';
 
 export default function Sidebar({ onNavigate, currentView }) {
-    const { channels, activeChannel, setActiveChannel, shiftActive, clockIn, endShift, timeRemaining, bankBalance, rank, streak, coworkerStates, persistentWorkplace, isClockingIn } = useGame();
+    const { channels, activeChannel, setActiveChannel, shiftActive, clockIn, endShift, timeRemaining, bankBalance, rank, streak, coworkerStates, persistentWorkplace, isClockingIn, companyAlias, markChannelRead, isChannelUnread, getUnreadCount } = useGame();
     const { logout } = useAuth();
     const [channelsOpen, setChannelsOpen] = useState(true);
     const [dmsOpen, setDmsOpen] = useState(true);
@@ -22,6 +22,7 @@ export default function Sidebar({ onNavigate, currentView }) {
     const companyName = persistentWorkplace?.companyName || 'NexTask Inc.';
 
     const handleChannelClick = (channelId) => {
+        markChannelRead(channelId);
         setActiveChannel(channelId);
         onNavigate('chat');
     };
@@ -33,10 +34,6 @@ export default function Sidebar({ onNavigate, currentView }) {
             setShowClockIn(false);
             setClockInGoal('');
         }
-    };
-
-    const getUnreadCount = (channelId) => {
-        return 0; // Placeholder — will implement proper unread tracking later
     };
 
     return (
@@ -117,20 +114,35 @@ export default function Sidebar({ onNavigate, currentView }) {
                     {channelsOpen ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
                     Channels
                 </button>
-                {channelsOpen && regularChannels.map(ch => (
-                    <button
-                        key={ch.id}
-                        onClick={() => handleChannelClick(ch.id)}
-                        className={`flex items-center gap-2 px-3 py-1.5 mx-2 rounded-md text-sm w-[calc(100%-16px)] text-left transition-colors ${
-                            activeChannel === ch.id && currentView === 'chat'
-                                ? 'bg-blue-600/20 text-white'
-                                : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
-                        }`}
-                    >
-                        <Hash size={14} className="shrink-0 opacity-60" />
-                        <span className="truncate">{ch.name}</span>
-                    </button>
-                ))}
+                {channelsOpen && regularChannels.map(ch => {
+                    const unread = isChannelUnread(ch.id);
+                    const unreadCount = getUnreadCount(ch.id);
+                    const isActive = activeChannel === ch.id && currentView === 'chat';
+                    return (
+                        <button
+                            key={ch.id}
+                            onClick={() => handleChannelClick(ch.id)}
+                            className={`flex items-center gap-2 px-3 py-1.5 mx-2 rounded-md text-sm w-[calc(100%-16px)] text-left transition-colors ${
+                                isActive
+                                    ? 'bg-blue-600/20 text-white'
+                                    : unread
+                                        ? 'text-white font-semibold hover:bg-white/5'
+                                        : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
+                            }`}
+                        >
+                            <Hash size={14} className="shrink-0 opacity-60" />
+                            {unread && (
+                                <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                            )}
+                            <span className="truncate">{ch.name}</span>
+                            {unreadCount > 0 && (
+                                <span className="ml-auto text-[10px] font-bold text-blue-400 bg-blue-500/20 px-1.5 py-0.5 rounded-full">
+                                    {unreadCount > 99 ? '99+' : unreadCount}
+                                </span>
+                            )}
+                        </button>
+                    );
+                })}
 
                 {/* DMs section */}
                 <button onClick={() => setDmsOpen(!dmsOpen)} className="flex items-center gap-1 px-3 py-0.5 mt-3 text-[11px] font-semibold text-gray-500 hover:text-gray-300 uppercase tracking-wider w-full text-left transition-colors">
@@ -139,18 +151,28 @@ export default function Sidebar({ onNavigate, currentView }) {
                 </button>
                 {dmsOpen && dmChannels.map(dm => {
                     const coworkerState = coworkerStates[dm.characterId] || {};
+                    const unread = isChannelUnread(dm.id);
+                    const unreadCount = getUnreadCount(dm.id);
+                    const isActive = activeChannel === dm.id && currentView === 'chat';
                     return (
                         <button
                             key={dm.id}
                             onClick={() => handleChannelClick(dm.id)}
                             className={`flex items-center gap-2 px-3 py-1.5 mx-2 rounded-md text-sm w-[calc(100%-16px)] text-left transition-colors ${
-                                activeChannel === dm.id && currentView === 'chat'
+                                isActive
                                     ? 'bg-blue-600/20 text-white'
-                                    : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
+                                    : unread
+                                        ? 'text-white font-semibold hover:bg-white/5'
+                                        : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
                             }`}
                         >
                             <Avatar emoji={dm.avatar} color={dm.accentColor} size={22} online={coworkerState.isOnline} />
                             <span className="truncate">{dm.name}</span>
+                            {unreadCount > 0 && (
+                                <span className="ml-auto text-[10px] font-bold text-blue-400 bg-blue-500/20 px-1.5 py-0.5 rounded-full">
+                                    {unreadCount > 99 ? '99+' : unreadCount}
+                                </span>
+                            )}
                         </button>
                     );
                 })}
@@ -212,6 +234,7 @@ export default function Sidebar({ onNavigate, currentView }) {
                     <div className="flex items-center gap-2 min-w-0">
                         <Avatar emoji="🧑" color="#6b7280" size={28} online={shiftActive} />
                         <div className="min-w-0">
+                            <div className="text-xs font-medium text-white truncate">{companyAlias || 'Employee'}</div>
                             <div className={`text-[10px] font-bold ${rankData.color}`}>{rankData.title}</div>
                         </div>
                     </div>

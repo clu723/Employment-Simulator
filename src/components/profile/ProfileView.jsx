@@ -9,7 +9,7 @@ import { ALL_CHARACTERS } from '../../data/coworkerTemplates';
 
 export default function ProfileView() {
     const { currentUser } = useAuth();
-    const { rank, bankBalance, netWorth, promotionPoints, streak, tasksCompletedTotal, coworkerStates, persistentWorkplace } = useGame();
+    const { rank, bankBalance, netWorth, promotionPoints, streak, tasksCompletedTotal, coworkerStates, persistentWorkplace, companyAlias } = useGame();
     const rankData = getRankById(rank);
     const nextRank = getNextRank(rank);
 
@@ -17,7 +17,7 @@ export default function ProfileView() {
         ? Math.min(100, Math.floor((promotionPoints / nextRank.promotionThreshold) * 100))
         : 100;
 
-    const displayName = currentUser?.displayName?.split(' ')[0] || 'Employee';
+    const displayName = companyAlias || currentUser?.displayName?.split(' ')[0] || 'Employee';
 
     return (
         <div className="flex flex-col h-full">

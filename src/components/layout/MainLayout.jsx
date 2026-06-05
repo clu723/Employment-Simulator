@@ -7,12 +7,16 @@ import ProfileView from '../profile/ProfileView';
 import ApartmentView from '../profile/ApartmentView';
 import LeaderboardView from '../profile/LeaderboardView';
 import SettingsView from '../settings/SettingsView';
+import { useGame } from '../../context/GameContext';
+import ClockInLoadingOverlay from '../shared/ClockInLoadingOverlay';
+import { AnimatePresence } from 'framer-motion';
 
 /**
  * Main application shell: sidebar + content area.
  * Routes content based on currentView state.
  */
 export default function MainLayout() {
+    const { isClockingIn } = useGame();
     const [currentView, setCurrentView] = useState('chat');
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -68,6 +72,10 @@ export default function MainLayout() {
             <div className="flex-1 flex flex-col min-w-0">
                 {renderContent()}
             </div>
+
+            <AnimatePresence>
+                {isClockingIn && <ClockInLoadingOverlay />}
+            </AnimatePresence>
         </div>
     );
 }

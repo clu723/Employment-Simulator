@@ -1,31 +1,49 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, X, FileText, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { Upload, X, CheckCircle2, AlertCircle, Loader2, Send } from 'lucide-react';
 import { fileToBase64 } from '../utils/ocr';
 
-const TaskVerificationModal = ({ task, isOpen, onClose, onVerify, onBypass }) => {
+const TaskVerificationModal = ({ task, isOpen, onClose, onVerify, onBypass, onCompleteWithProof, getVerificationResult }) => {
+    // Support both new flow (verifyScreenshot + completeTaskWithProof) and legacy flow (onVerify = completeTaskWithProof)
+    const handleVerify = onVerify;
+    const handleCompleteWithProof = onCompleteWithProof || onVerify;
+    const handleGetVerificationResult = getVerificationResult || (() => null);
+
     const [file, setFile] = useState(null);
     const [previewUrl, setPreviewUrl] = useState(null);
-    const [status, setStatus] = useState('idle'); // idle, ocr, llm, success, error
-    const [progress, setProgress] = useState(0);
+    const [status, setStatus] = useState('idle'); // idle, checking, approved, rejected, error, completing
+    const [approvalResult, setApprovalResult] = useState(null);
     const [errorMsg, setErrorMsg] = useState('');
+    const [feedbackText, setFeedbackText] = useState('');
     const fileInputRef = useRef(null);
     const onCloseRef = useRef(onClose);
     useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
 
-    // Automatically close after success — useEffect avoids stale closure issues
+    const resetState = useCallback(() => {
+        setFile(null);
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        setPreviewUrl(null);
+        setStatus('idle');
+        setApprovalResult(null);
+        setErrorMsg('');
+        setFeedbackText('');
+    }, [previewUrl]);
+
+    const handleClose = useCallback(() => {
+        resetState();
+        onCloseRef.current();
+    }, [resetState]);
+
+    // Load stored verification when task opens
     useEffect(() => {
-        if (status !== 'success') return;
-        const timer = setTimeout(() => {
-            setFile(null);
-            setPreviewUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null; });
-            setStatus('idle');
-            setProgress(0);
-            setErrorMsg('');
-            onCloseRef.current();
-        }, 1500);
-        return () => clearTimeout(timer);
-    }, [status]);
+        if (!isOpen || !task) return;
+        const stored = handleGetVerificationResult(task.id);
+        if (stored) {
+            setApprovalResult(stored);
+            setStatus(stored.approved ? 'approved' : 'rejected');
+            setFeedbackText(stored.approved ? 'Previously evaluated as Approved' : 'Previously evaluated as Not approved');
+        }
+    }, [isOpen, task, handleGetVerificationResult]);
 
     const handleFileChange = (e) => {
         const selectedFile = e.target.files[0];
@@ -37,6 +55,9 @@ const TaskVerificationModal = ({ task, isOpen, onClose, onVerify, onBypass }) =>
             setFile(selectedFile);
             setPreviewUrl(URL.createObjectURL(selectedFile));
             setErrorMsg('');
+            setFeedbackText('Screenshot updated');
+            setStatus('idle');
+            setApprovalResult(null);
         }
     };
 
@@ -51,6 +72,9 @@ const TaskVerificationModal = ({ task, isOpen, onClose, onVerify, onBypass }) =>
             setFile(droppedFile);
             setPreviewUrl(URL.createObjectURL(droppedFile));
             setErrorMsg('');
+            setFeedbackText('Screenshot updated');
+            setStatus('idle');
+            setApprovalResult(null);
         }
     };
 
@@ -58,38 +82,53 @@ const TaskVerificationModal = ({ task, isOpen, onClose, onVerify, onBypass }) =>
         if (!file) return;
 
         try {
-            setStatus('llm');
+            setStatus('checking');
+            setFeedbackText('Re-evaluating submission...');
+            setApprovalResult(null);
+            setErrorMsg('');
 
-            // Convert image to base64 and send directly to the vision LLM
             const base64Image = await fileToBase64(file);
-            await onVerify(task.id, base64Image);
+            const result = await handleVerify(task.id, base64Image);
 
-            setStatus('success');
-
+            if (result && result.approved) {
+                setApprovalResult(result);
+                setStatus('approved');
+                setFeedbackText('New result: Approved');
+            } else {
+                setApprovalResult(result || { approved: false, reason: 'No reason provided.' });
+                setStatus('rejected');
+                setFeedbackText('New result: Not approved');
+            }
         } catch (err) {
             console.error(err);
             setStatus('error');
             setErrorMsg(err.message || 'Verification failed.');
+            setFeedbackText('');
         }
     };
 
-    const handleClose = () => {
-        setFile(null);
-        if (previewUrl) URL.revokeObjectURL(previewUrl);
-        setPreviewUrl(null);
-        setStatus('idle');
-        setProgress(0);
-        setErrorMsg('');
-        onCloseRef.current();
+    const handleCompleteTask = async () => {
+        if (!task) return;
+        try {
+            setStatus('completing');
+            await handleCompleteWithProof(task.id);
+            handleClose();
+        } catch (err) {
+            console.error(err);
+            setStatus('error');
+            setErrorMsg(err.message || 'Failed to complete task.');
+        }
     };
 
     if (!isOpen) return null;
+
+    const hasResult = status === 'approved' || status === 'rejected';
 
     return (
         <AnimatePresence>
             <div
                 className="fixed inset-0 z-50 overflow-y-auto custom-scrollbar bg-black/60 backdrop-blur-sm"
-                onClick={status === 'ocr' || status === 'llm' ? undefined : handleClose}
+                onClick={status === 'checking' || status === 'completing' ? undefined : handleClose}
             >
                 <div className="flex min-h-full items-center justify-center p-4 py-8">
                     <motion.div
@@ -103,11 +142,11 @@ const TaskVerificationModal = ({ task, isOpen, onClose, onVerify, onBypass }) =>
                         <div className="flex items-center justify-between p-4 border-b border-white/10 bg-black/20 rounded-t-2xl">
                             <h2 className="text-lg font-bold text-white flex items-center gap-2">
                                 <CheckCircle2 className="text-blue-400" size={20} />
-                                Verify Task Completion
+                                Submit proof for full rewards
                             </h2>
                             <button
                                 onClick={handleClose}
-                                disabled={status === 'ocr' || status === 'llm'}
+                                disabled={status === 'checking' || status === 'completing'}
                                 className="text-gray-400 hover:text-white transition-colors disabled:opacity-50"
                             >
                                 <X size={20} />
@@ -118,7 +157,10 @@ const TaskVerificationModal = ({ task, isOpen, onClose, onVerify, onBypass }) =>
                             {/* Task Info */}
                             <div className="bg-white/5 rounded-xl p-4 mb-6 border border-white/5">
                                 <span className="text-xs text-gray-400 uppercase tracking-wider block mb-1">Task</span>
-                                <p className="text-gray-200 text-sm font-medium">{task?.text}</p>
+                                <p className="text-gray-200 text-sm font-medium">{task?.title}</p>
+                                <p className="text-xs text-gray-400 mt-2">
+                                    Upload a screenshot of your completed work to earn full salary, XP, and progression rewards.
+                                </p>
                             </div>
 
                             {/* Upload Area */}
@@ -144,6 +186,13 @@ const TaskVerificationModal = ({ task, isOpen, onClose, onVerify, onBypass }) =>
                                         <p className="text-sm text-gray-400 mb-4">Drag and drop or click to browse</p>
                                         <p className="text-xs text-gray-500">Supports PNG, JPG, JPEG</p>
                                     </div>
+
+                                    {/* Show previous result if file not re-uploaded yet */}
+                                    {hasResult && (
+                                        <div className="text-center">
+                                            <p className="text-xs text-gray-500">{feedbackText}</p>
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="space-y-4">
@@ -151,18 +200,44 @@ const TaskVerificationModal = ({ task, isOpen, onClose, onVerify, onBypass }) =>
                                         <img src={previewUrl} alt="Preview" className="max-h-full max-w-full object-contain" />
                                     </div>
 
-                                    {/* Status Indicators */}
-                                    <div className="h-14 flex items-center justify-center">
-                                        {status === 'llm' && (
+                                    {/* Status & Feedback */}
+                                    <div className="min-h-12 flex items-center justify-center">
+                                        {status === 'checking' && (
                                             <div className="flex flex-col items-center text-blue-400">
                                                 <Loader2 className="animate-spin mb-2" size={24} />
-                                                <span className="text-sm font-medium">Manager is reviewing your submission...</span>
+                                                <span className="text-sm font-medium">Re-evaluating submission...</span>
                                             </div>
                                         )}
-                                        {status === 'success' && (
-                                            <div className="flex flex-col items-center text-green-400">
-                                                <CheckCircle2 size={32} className="mb-2" />
-                                                <span className="text-sm font-medium">Verification Complete!</span>
+                                        {status === 'approved' && (
+                                            <div className="flex flex-col items-center text-green-400 text-center">
+                                                <CheckCircle2 size={28} className="mb-1" />
+                                                <span className="text-sm font-bold">New result: Approved</span>
+                                                <span className="text-xs text-gray-400 mt-0.5">Ready to complete with full rewards.</span>
+                                            </div>
+                                        )}
+                                        {status === 'rejected' && (
+                                            <div className="w-full space-y-2">
+                                                <div className="flex items-start gap-2 text-amber-400 bg-amber-400/10 p-3 rounded-lg border border-amber-400/20">
+                                                    <AlertCircle size={20} className="shrink-0 mt-0.5" />
+                                                    <div>
+                                                        <span className="text-sm font-bold block">New result: Not approved</span>
+                                                        <span className="text-xs text-gray-400 block mt-0.5">
+                                                            You can still complete the task with 50% rewards, or try uploading a better screenshot.
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                {approvalResult?.reason && (
+                                                    <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                                                        <span className="text-[10px] text-gray-500 uppercase tracking-wider font-bold block mb-1">Reason</span>
+                                                        <p className="text-sm text-gray-300">{approvalResult.reason}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                        {status === 'completing' && (
+                                            <div className="flex flex-col items-center text-blue-400">
+                                                <Loader2 className="animate-spin mb-2" size={24} />
+                                                <span className="text-sm font-medium">Completing task...</span>
                                             </div>
                                         )}
                                         {status === 'error' && (
@@ -171,59 +246,106 @@ const TaskVerificationModal = ({ task, isOpen, onClose, onVerify, onBypass }) =>
                                                 <span className="text-sm">{errorMsg}</span>
                                             </div>
                                         )}
+                                        {status === 'idle' && feedbackText && (
+                                            <div className="text-center">
+                                                <span className="text-xs text-gray-400">{feedbackText}</span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )}
                         </div>
 
                         {/* Footer */}
-                        <div className="p-6 pt-0 mt-4 border-t border-white/10">
-                            {/* Action Buttons */}
+                        <div className="p-6 pt-0 mt-4 border-t border-white/10 bg-black/5 rounded-b-2xl">
                             <div className="flex flex-col gap-3 mt-6">
-                                {(status === 'idle' || status === 'error') && (
-                                    <>
-                                        <div className="flex gap-3">
-                                            {file ? (
-                                                <button
-                                                    onClick={() => {
-                                                        setFile(null);
-                                                        if (previewUrl) URL.revokeObjectURL(previewUrl);
-                                                        setPreviewUrl(null);
-                                                        setStatus('idle');
-                                                        setErrorMsg('');
-                                                    }}
-                                                    className="flex-[1.5] bg-white/10 hover:bg-white/20 text-white font-medium py-3 rounded-xl transition-colors flex items-center justify-center text-sm"
-                                                >
-                                                    Upload Another
-                                                </button>
-                                            ) : (
-                                                <button
-                                                    onClick={handleClose}
-                                                    className="flex-[1.5] bg-white/10 hover:bg-white/20 text-white font-medium py-3 rounded-xl transition-colors flex items-center justify-center text-sm"
-                                                >
-                                                    Cancel
-                                                </button>
-                                            )}
-                                            <button
-                                                onClick={handleSubmit}
-                                                disabled={!file}
-                                                className="flex-[2] bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/50 disabled:cursor-not-allowed text-white font-medium py-3 rounded-xl transition-colors flex items-center justify-center gap-2 text-sm"
-                                            >
-                                                <CheckCircle2 size={18} />
-                                                Submit Proof
-                                            </button>
-                                        </div>
+                                {/* Main action row */}
+                                <div className="flex gap-3">
+                                    {status === 'error' && (
+                                        <button
+                                            onClick={resetState}
+                                            className="flex-[1.5] bg-white/10 hover:bg-white/20 text-white font-medium py-3 rounded-xl transition-colors flex items-center justify-center text-sm"
+                                        >
+                                            Try Again
+                                        </button>
+                                    )}
+                                    {file && status !== 'completing' && (
                                         <button
                                             onClick={() => {
-                                                onBypass(task.id);
-                                                handleClose();
+                                                setFile(null);
+                                                if (previewUrl) URL.revokeObjectURL(previewUrl);
+                                                setPreviewUrl(null);
+                                                setStatus('idle');
+                                                setApprovalResult(null);
+                                                setErrorMsg('');
+                                                setFeedbackText('');
                                             }}
-                                            className="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 font-medium py-2 rounded-xl border border-red-500/20 transition-colors flex items-center justify-center gap-2 text-sm"
+                                            className="flex-[1.5] bg-white/10 hover:bg-white/20 text-white font-medium py-3 rounded-xl transition-colors flex items-center justify-center text-sm"
                                         >
-                                            <AlertCircle size={16} />
-                                            Bypass Manager (Earn 50% Points)
+                                            Upload Another
                                         </button>
-                                    </>
+                                    )}
+                                    {!file && status !== 'completing' && !hasResult && (
+                                        <button
+                                            onClick={handleClose}
+                                            className="flex-[1.5] bg-white/10 hover:bg-white/20 text-white font-medium py-3 rounded-xl transition-colors flex items-center justify-center text-sm"
+                                        >
+                                            Cancel
+                                        </button>
+                                    )}
+                                    {file && status !== 'checking' && status !== 'completing' && (
+                                        <button
+                                            onClick={handleSubmit}
+                                            className="flex-[2] bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-colors flex items-center justify-center gap-2 text-sm"
+                                        >
+                                            <CheckCircle2 size={18} />
+                                            Submit Proof
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Complete / Try New Screenshot row */}
+                                {hasResult && !file && (
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={handleCompleteTask}
+                                            disabled={status === 'completing'}
+                                            className="flex-1 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-medium py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2 text-sm"
+                                        >
+                                            <Send size={16} />
+                                            {approvalResult?.approved ? 'Complete Task (Full Rewards)' : 'Complete Task (50% Rewards)'}
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setFile(null);
+                                                if (previewUrl) URL.revokeObjectURL(previewUrl);
+                                                setPreviewUrl(null);
+                                                setStatus('idle');
+                                                setApprovalResult(null);
+                                                setErrorMsg('');
+                                                setFeedbackText('');
+                                                fileInputRef.current?.click();
+                                            }}
+                                            className="flex-1 bg-white/5 hover:bg-white/10 text-gray-300 font-medium py-2.5 rounded-xl border border-white/10 transition-colors flex items-center justify-center gap-2 text-sm"
+                                        >
+                                            <Upload size={16} />
+                                            Try New Screenshot
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* Skip Proof (always available when not completing) */}
+                                {!hasResult && status !== 'completing' && (
+                                    <button
+                                        onClick={() => {
+                                            onBypass(task.id);
+                                            handleClose();
+                                        }}
+                                        className="w-full bg-white/5 hover:bg-white/10 text-gray-300 font-medium py-2 rounded-xl border border-white/10 transition-colors flex items-center justify-center gap-2 text-sm"
+                                    >
+                                        <AlertCircle size={16} />
+                                        Skip Proof (50% Rewards)
+                                    </button>
                                 )}
                             </div>
                         </div>

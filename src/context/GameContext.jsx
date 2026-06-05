@@ -4,7 +4,9 @@ import { db } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { ALL_CHARACTERS, getCharacterById } from '../data/coworkerTemplates';
 import { SCHEDULED_EVENTS, RANDOM_EVENTS } from '../data/eventTemplates';
-import { generateText } from '../systems/aiClient';
+import { generateText, generateVision } from '../systems/aiClient';
+import { approveScreenshot } from '../systems/screenshotApproval';
+import { generateTasks, getRandomManagerMessage } from '../systems/taskGenerator';
 import { getRankById, getNextRank, canPromote, RANKS } from '../utils/levels';
 import { buildCoworkerPrompt, buildCoworkerDMPrompt } from '../systems/promptBuilder';
 import { generateProjectContext } from '../systems/workplaceGenerator';
@@ -49,7 +51,11 @@ function createInitialState() {
         apartmentItems: ['basic_desk'],
 
         // Meta
+        companyAlias: '',
         hasCompletedOnboarding: false,
+
+        // Unread tracking: { channelId: lastViewedTimestamp }
+        channelLastViewed: {},
     };
 }
 
@@ -81,6 +87,11 @@ export function GameProvider({ children }) {
     const randomEventRef = useRef(null);
     const isGeneratingRef = useRef(false);
     const saveTimeoutRef = useRef(null);
+    const taskGenerationLockRef = useRef(false);
+    const completedCountRef = useRef(0);
+    const pendingVerificationsRef = useRef({}); // taskId -> { approved, confidence, reason, imageData, timestamp }
+    const prevCompletedCountRef = useRef(0);
+    const ensureTasksRef = useRef(null); // Will hold ensureMinimumTasks after creation
 
     // ── Compute dynamic channels ──
     const generatedChannels = state.persistentWorkplace?.persistentChannels || [
@@ -126,7 +137,9 @@ export function GameProvider({ children }) {
                         persistentWorkplace: data.persistentWorkplace || null,
                         projectContext: data.projectContext || null,
                         apartmentItems: data.apartmentItems || ['basic_desk'],
+                        companyAlias: data.companyAlias || '',
                         hasCompletedOnboarding: data.hasCompletedOnboarding || false,
+                        channelLastViewed: data.channelLastViewed || {},
                     }));
                 } else {
                     setState(prev => ({
@@ -162,7 +175,9 @@ export function GameProvider({ children }) {
                     persistentWorkplace: state.persistentWorkplace,
                     projectContext: state.projectContext,
                     apartmentItems: state.apartmentItems,
+                    companyAlias: state.companyAlias,
                     hasCompletedOnboarding: state.hasCompletedOnboarding,
+                    channelLastViewed: state.channelLastViewed,
                     score: state.netWorth
                 }, { merge: true });
             } catch (err) {
@@ -170,7 +185,7 @@ export function GameProvider({ children }) {
             }
         }, 2000);
         return () => clearTimeout(saveTimeoutRef.current);
-    }, [state.rank, state.bankBalance, state.netWorth, state.promotionPoints, state.streak, state.lastShiftDate, state.tasksCompletedTotal, state.workplaceVibe, state.persistentWorkplace, state.projectContext, state.apartmentItems, state.hasCompletedOnboarding, currentUser, isLoaded]);
+    }, [state.rank, state.bankBalance, state.netWorth, state.promotionPoints, state.streak, state.lastShiftDate, state.tasksCompletedTotal, state.workplaceVibe, state.persistentWorkplace, state.projectContext, state.apartmentItems, state.companyAlias, state.hasCompletedOnboarding, state.channelLastViewed, currentUser, isLoaded]);
 
     // ── Shift Timer ──
     useEffect(() => {
@@ -238,6 +253,22 @@ export function GameProvider({ children }) {
         return () => clearInterval(randomEventRef.current);
     }, [state.shiftActive]);
 
+    // ── Add a message to a channel ──
+    const addMessage = useCallback((channelId, msg) => {
+        const message = {
+            id: Date.now() + Math.random(),
+            timestamp: Date.now(),
+            ...msg,
+        };
+        setState(prev => ({
+            ...prev,
+            messages: {
+                ...prev.messages,
+                [channelId]: [...(prev.messages[channelId] || []), message],
+            },
+        }));
+    }, []);
+
     // ── Trigger an AI event ──
     const triggerEvent = useCallback(async (event) => {
         if (isGeneratingRef.current) return;
@@ -255,6 +286,8 @@ export function GameProvider({ children }) {
             const recentMsgs = (state.messages[channelId] || []).slice(-5)
                 .map(m => `${m.senderName}: ${m.text}`).join('\n');
 
+            const hasImages = event.images && event.images.length > 0;
+
             const prompt = buildCoworkerPrompt({
                 character,
                 persistentWorkplace: state.persistentWorkplace,
@@ -263,18 +296,22 @@ export function GameProvider({ children }) {
                 recentMsgs,
                 userGoal: state.userGoal,
                 latestUserMessage: event.latestUserMessage || event.promptContext,
-                behaviorMode: event.behaviorMode || 'workplace_banter'
+                behaviorMode: event.behaviorMode || 'workplace_banter',
+                hasImages
             });
 
             // Simulate typing delay
             await new Promise(r => setTimeout(r, 1500 + Math.random() * 2000));
 
-            const text = await generateText(prompt);
+            const text = hasImages
+                ? await generateVision(prompt, event.images)
+                : await generateText(prompt);
 
             if (text) {
                 const roleInfo = state.persistentWorkplace?.baselineRoles?.[character.id] || { title: 'Employee', emoji: '🧑' };
                 addMessage(channelId, {
                     text,
+                    images: event.images,
                     senderId: character.id,
                     senderName: character.name,
                     senderAvatar: roleInfo.emoji,
@@ -288,23 +325,7 @@ export function GameProvider({ children }) {
             setTypingCharacter(null);
             isGeneratingRef.current = false;
         }
-    }, [state.coworkerStates, state.messages, state.userGoal, state.persistentWorkplace, state.projectContext]);
-
-    // ── Add a message to a channel ──
-    const addMessage = useCallback((channelId, msg) => {
-        const message = {
-            id: Date.now() + Math.random(),
-            timestamp: Date.now(),
-            ...msg,
-        };
-        setState(prev => ({
-            ...prev,
-            messages: {
-                ...prev.messages,
-                [channelId]: [...(prev.messages[channelId] || []), message],
-            },
-        }));
-    }, []);
+    }, [state.coworkerStates, state.messages, state.userGoal, state.persistentWorkplace, state.projectContext, addMessage]);
 
     // ── Send a user message ──
     const sendMessage = useCallback(async (channelId, text, images = []) => {
@@ -312,10 +333,12 @@ export function GameProvider({ children }) {
             text,
             images,
             senderId: 'user',
-            senderName: currentUser?.displayName?.split(' ')[0] || 'You',
+            senderName: state.companyAlias || currentUser?.displayName?.split(' ')[0] || 'You',
             senderAvatar: '🧑',
             type: 'user',
         });
+
+        const hasImages = images.length > 0;
 
         // If DM, trigger AI response
         if (channelId.startsWith('dm_')) {
@@ -342,11 +365,14 @@ export function GameProvider({ children }) {
                         userGoal: state.userGoal,
                         activeTasks,
                         latestUserMessage: text,
-                        behaviorMode: 'direct_collaboration'
+                        behaviorMode: 'direct_collaboration',
+                        hasImages
                     });
 
                     await new Promise(r => setTimeout(r, 3000 + Math.random() * 3000));
-                    const response = await generateText(prompt);
+                    const response = hasImages
+                        ? await generateVision(prompt, images)
+                        : await generateText(prompt);
 
                     if (response) {
                         const roleInfo = state.persistentWorkplace?.baselineRoles?.[character.id] || { title: 'Employee', emoji: '🧑' };
@@ -368,7 +394,7 @@ export function GameProvider({ children }) {
             }
         }
 
-        // If team-chat or general, coworker chimes in after a random delay
+        // If team-chat or general, coworker chimes in after a longer random delay
         if (!channelId.startsWith('dm_') && !isGeneratingRef.current) {
             const randomCoworker = ALL_CHARACTERS[Math.floor(Math.random() * ALL_CHARACTERS.length)];
             setTimeout(() => {
@@ -379,10 +405,11 @@ export function GameProvider({ children }) {
                     latestUserMessage: text,
                     behaviorMode: 'casual_banter',
                     promptContext: `React naturally to what the user said in the context of the chat. You may agree, joke, help, or be dismissive based on your personality.`,
+                    images
                 });
             }, 5000 + Math.random() * 25000);
         }
-    }, [currentUser, state.coworkerStates, state.messages, state.tasks, state.userGoal, state.persistentWorkplace, state.projectContext, addMessage, triggerEvent]);
+    }, [currentUser, state.coworkerStates, state.messages, state.tasks, state.userGoal, state.companyAlias, state.persistentWorkplace, state.projectContext, addMessage, triggerEvent]);
 
     const clockIn = useCallback(async (goal, duration) => {
         setIsClockingIn(true);
@@ -545,6 +572,12 @@ TASK: First specific task description`;
             };
             setState(prev => ({ ...prev, tasks: [...prev.tasks, task] }));
         }
+
+        // Ensure we reach minimum 3 active tasks after clock-in
+        // The initial task + generated top-ups (uses ref to avoid TDZ with const)
+        if (ensureTasksRef.current) {
+            ensureTasksRef.current();
+        }
         
         setIsClockingIn(false);
     }, [addMessage, generatedChannels, state.persistentWorkplace, state.projectContext, state.lastShiftDate, state.apartmentItems, state.bankBalance]);
@@ -688,14 +721,14 @@ TASK: First specific task description`;
         return task;
     }, []);
 
-    const completeTask = useCallback((taskId) => {
+    const completeTask = useCallback((taskId, rewardMultiplier = 1.0) => {
         setState(prev => {
             const task = prev.tasks.find(t => t.id === taskId);
             if (!task || task.completed) return prev;
 
             const streakBonus = 1 + (prev.streak * 0.1);
-            const pointsEarned = Math.floor(task.difficulty * 10 * streakBonus);
-            const salaryEarned = Math.floor(task.difficulty * 50 * streakBonus);
+            const pointsEarned = Math.floor(task.difficulty * 10 * streakBonus * rewardMultiplier);
+            const salaryEarned = Math.floor(task.difficulty * 50 * streakBonus * rewardMultiplier);
 
             return {
                 ...prev,
@@ -708,9 +741,293 @@ TASK: First specific task description`;
         });
     }, []);
 
+    // ── Ensure minimum 3 active tasks (with generation lock) ──
+    const ensureMinimumTasks = useCallback(() => {
+        // Prevent concurrent generation runs
+        if (taskGenerationLockRef.current) return;
+
+        const activeTasks = state.tasks.filter(t => !t.completed);
+        const count = activeTasks.length;
+        if (count >= 3) return;
+
+        taskGenerationLockRef.current = true;
+        const needed = 3 - count;
+        const activeTaskTitles = activeTasks.map(t => t.title);
+
+        generateTasks(needed, {
+            userGoal: state.userGoal,
+            completedTasks: state.tasks.filter(t => t.completed).map(t => t.title),
+            activeTasks: activeTaskTitles,
+            projectContext: state.projectContext,
+        }).then(newTasks => {
+            if (newTasks.length === 0) {
+                taskGenerationLockRef.current = false;
+                return;
+            }
+
+            setState(current => {
+                const currentActiveTitles = current.tasks.filter(t => !t.completed).map(t => t.title);
+                // Filter out any duplicates
+                const filtered = newTasks.filter(t => !currentActiveTitles.includes(t.title));
+
+                if (filtered.length === 0 && newTasks.length > 0) {
+                    filtered.push({
+                        title: `${newTasks[0].title} (follow-up)`,
+                        difficulty: newTasks[0].difficulty,
+                        category: newTasks[0].category,
+                    });
+                }
+
+                const tasksToAdd = filtered.slice(0, needed).map(t => ({
+                    id: Date.now() + Math.random(),
+                    title: t.title,
+                    difficulty: Math.min(5, Math.max(1, t.difficulty)),
+                    category: t.category || 'general',
+                    completed: false,
+                    createdAt: Date.now(),
+                }));
+
+                if (tasksToAdd.length === 0) {
+                    taskGenerationLockRef.current = false;
+                    return current;
+                }
+
+                // Post manager message about the new task(s)
+                const defaultChannel = current.persistentWorkplace?.persistentChannels?.[0]?.id || 'general';
+                const managerMsg = getRandomManagerMessage();
+                const msgText = tasksToAdd.length === 1
+                    ? `${managerMsg} New task: "${tasksToAdd[0].title}".`
+                    : `${managerMsg} New tasks added.`;
+
+                setTimeout(() => {
+                    addMessage(defaultChannel, {
+                        text: msgText,
+                        senderId: 'manager_davis',
+                        senderName: 'Patricia Davis',
+                        senderAvatar: current.persistentWorkplace?.baselineRoles?.manager_davis?.emoji || '👩‍💼',
+                        senderRole: current.persistentWorkplace?.baselineRoles?.manager_davis?.title || 'Manager',
+                        type: 'coworker',
+                    });
+                }, 1000);
+
+                taskGenerationLockRef.current = false;
+
+                return {
+                    ...current,
+                    tasks: [...current.tasks, ...tasksToAdd],
+                };
+            });
+        }).catch(err => {
+            console.error('Failed to generate tasks:', err);
+            taskGenerationLockRef.current = false;
+        });
+    }, [state.tasks, state.userGoal, state.projectContext, addMessage]);
+
+    // Store in ref so earlier hooks (like clockIn) can call it
+    ensureTasksRef.current = ensureMinimumTasks;
+
+    // ── Safety net: ensure minimum tasks whenever a task is completed ──
+    useEffect(() => {
+        if (!state.shiftActive) return;
+        const completedCount = state.tasks.filter(t => t.completed).length;
+        if (completedCount > prevCompletedCountRef.current) {
+            ensureMinimumTasks();
+        }
+        prevCompletedCountRef.current = completedCount;
+    }, [state.tasks, state.shiftActive, ensureMinimumTasks]);
+
+    // ── Pure screenshot verification (no task completion) ──
+    // Can be called unlimited times per task; each call overwrites the previous result.
+    const verifyScreenshot = useCallback(async (taskId, base64Image) => {
+        let taskTitle = 'a task';
+        let taskObj = null;
+        // Peek at current state (non-blocking — we just need task info for the LLM prompt)
+        setState(prev => {
+            const t = prev.tasks.find(x => x.id === taskId);
+            if (t) {
+                taskTitle = t.title;
+                taskObj = t;
+            }
+            return prev; // don't mutate
+        });
+
+        let approval;
+        try {
+            approval = await approveScreenshot(taskObj || { title: taskTitle, category: 'general' }, base64Image);
+        } catch (err) {
+            console.error('Screenshot approval failed:', err);
+            approval = { approved: false, confidence: 0, reason: 'Verification service unavailable.' };
+        }
+
+        // Store the latest verification result, overwriting any previous attempt
+        pendingVerificationsRef.current[taskId] = {
+            ...approval,
+            imageData: base64Image,
+            timestamp: Date.now(),
+        };
+
+        return approval;
+    }, []);
+
+    // ── Complete task using the LATEST stored verification result ──
+    const completeTaskWithProof = useCallback(async (taskId) => {
+        // Retrieve the latest verification for this task (or default to rejected)
+        const pending = pendingVerificationsRef.current[taskId];
+        const approval = pending || { approved: false, confidence: 0, reason: 'No screenshot submitted.' };
+        const imageData = pending?.imageData || null;
+
+        let taskTitle = 'a task';
+        setState(prev => {
+            const t = prev.tasks.find(x => x.id === taskId);
+            if (t) taskTitle = t.title;
+            return prev;
+        });
+
+        // 1. Complete task with appropriate multiplier
+        const multiplier = approval.approved ? 1.0 : 0.5;
+        completeTask(taskId, multiplier);
+
+        // 2. Post a system message in the general channel
+        const defaultChannel = generatedChannels[0]?.id || 'general';
+        const statusText = approval.approved
+            ? `📊 Task completed: "${taskTitle}". Screenshot approved — full rewards granted.`
+            : `⚠️ Task completed: "${taskTitle}". Screenshot not approved — 50% rewards granted. Reason: ${approval.reason}`;
+        addMessage(defaultChannel, {
+            text: statusText,
+            senderId: 'system',
+            senderName: 'System',
+            senderAvatar: '🏢',
+            type: 'system',
+            images: imageData ? [imageData] : undefined,
+        });
+
+        // 3. Trigger coworker/manager reactions (only if approved, to keep feedback meaningful)
+        if (approval.approved && imageData) {
+            setTimeout(async () => {
+                setTypingCharacter({ id: 'manager_davis', channelId: defaultChannel });
+                try {
+                    const character = getCharacterById('manager_davis');
+                    const managerRole = state.persistentWorkplace?.baselineRoles?.['manager_davis'] || { title: 'Manager', emoji: '👩‍💼' };
+
+                    const prompt = `You are ${character.name}, working as the Manager at ${state.persistentWorkplace?.companyName || 'the company'}.
+You are reviewing the proof of work uploaded by the user for the completed task: "${taskTitle}".
+The user uploaded an image proof of their work.
+Review the proof image, and react naturally as the manager. You can offer professional praise or constructive critique based on your personality (${character.basePersonality}).
+Keep your response concise, realistic, and direct.`;
+
+                    const comment = await generateVision(prompt, [imageData]);
+                    
+                    if (comment) {
+                        addMessage(defaultChannel, {
+                            text: comment,
+                            senderId: 'manager_davis',
+                            senderName: character.name,
+                            senderAvatar: managerRole.emoji,
+                            senderRole: managerRole.title,
+                            type: 'coworker',
+                        });
+                    }
+                } catch (err) {
+                    console.error('Manager task reaction failed:', err);
+                } finally {
+                    setTypingCharacter(null);
+                }
+            }, 3000 + Math.random() * 2000);
+
+            if (Math.random() < 0.7) {
+                setTimeout(async () => {
+                    const coworkers = ALL_CHARACTERS.filter(c => c.id !== 'manager_davis');
+                    const coworker = coworkers[Math.floor(Math.random() * coworkers.length)];
+                    
+                    setTypingCharacter({ id: coworker.id, channelId: defaultChannel });
+                    try {
+                        const coworkerRole = state.persistentWorkplace?.baselineRoles?.[coworker.id] || { title: 'Employee', emoji: '🧑' };
+                        const prompt = `You are ${coworker.name}, working as a ${coworkerRole.title} at ${state.persistentWorkplace?.companyName || 'the company'}.
+Your coworker just completed the task: "${taskTitle}" and uploaded a proof image.
+React casually and naturally to this proof of work. You can be supportive, slightly competitive, joke, or comment on the proof itself, matching your personality (${coworker.basePersonality}).
+Keep your response concise, realistic, and direct.`;
+
+                        const comment = await generateVision(prompt, [imageData]);
+                        if (comment) {
+                            addMessage(defaultChannel, {
+                                text: comment,
+                                senderId: coworker.id,
+                                senderName: coworker.name,
+                                senderAvatar: coworkerRole.emoji,
+                                senderRole: coworkerRole.title,
+                                type: 'coworker',
+                            });
+                        }
+                    } catch (err) {
+                        console.error('Coworker task reaction failed:', err);
+                    } finally {
+                        setTypingCharacter(null);
+                    }
+                }, 8000 + Math.random() * 4000);
+            }
+        }
+
+        // 4. Clear pending verification for this task
+        delete pendingVerificationsRef.current[taskId];
+
+        // 5. Ensure minimum active tasks are maintained
+        ensureMinimumTasks();
+
+        return approval;
+    }, [completeTask, addMessage, generatedChannels, state.persistentWorkplace, state.coworkerStates, ensureMinimumTasks]);
+
+    // ── Get the latest stored verification result for a task ──
+    const getVerificationResult = useCallback((taskId) => {
+        return pendingVerificationsRef.current[taskId] || null;
+    }, []);
+
+    const completeTaskWithoutProof = useCallback((taskId) => {
+        let taskTitle = 'a task';
+        setState(prev => {
+            const t = prev.tasks.find(x => x.id === taskId);
+            if (t) taskTitle = t.title;
+            return prev;
+        });
+
+        // Complete task with 0.5 multiplier
+        completeTask(taskId, 0.5);
+
+        const defaultChannel = generatedChannels[0]?.id || 'general';
+        addMessage(defaultChannel, {
+            text: `⚠️ Task completed without proof: "${taskTitle}". Only earned 50% rewards.`,
+            senderId: 'system',
+            senderName: 'System',
+            senderAvatar: '🏢',
+            type: 'system',
+        });
+
+        // Ensure minimum active tasks are maintained
+        ensureMinimumTasks();
+    }, [completeTask, addMessage, generatedChannels, ensureMinimumTasks]);
+
+    const setCompanyAlias = useCallback((companyAlias) => {
+        setState(prev => ({
+            ...prev,
+            companyAlias,
+        }));
+    }, []);
+
+    const updateAlias = useCallback(async (newAlias) => {
+        if (!currentUser) throw new Error('Not authenticated');
+        if (newAlias.trim().length < 2) throw new Error('Alias must be at least 2 characters');
+        if (newAlias.trim().length > 30) throw new Error('Alias must be 30 characters or less');
+
+        await setDoc(doc(db, 'users', currentUser.uid), {
+            companyAlias: newAlias.trim(),
+        }, { merge: true });
+
+        setState(prev => ({ ...prev, companyAlias: newAlias.trim() }));
+    }, [currentUser]);
+
     const deleteTask = useCallback((taskId) => {
         setState(prev => ({ ...prev, tasks: prev.tasks.filter(t => t.id !== taskId) }));
-    }, []);
+        ensureMinimumTasks();
+    }, [ensureMinimumTasks]);
     
     // ── Update persistent workplace manually (e.g. from settings) ──
     const setPersistentWorkplace = useCallback((workplaceVibe, persistentWorkplace) => {
@@ -736,6 +1053,28 @@ TASK: First specific task description`;
         });
     }, []);
 
+    // ── Unread Tracking ──
+    const markChannelRead = useCallback((channelId) => {
+        setState(prev => ({
+            ...prev,
+            channelLastViewed: {
+                ...prev.channelLastViewed,
+                [channelId]: Date.now(),
+            },
+        }));
+    }, []);
+
+    const getUnreadCount = useCallback((channelId) => {
+        const msgs = state.messages[channelId] || [];
+        if (msgs.length === 0) return 0;
+        const lastViewed = state.channelLastViewed[channelId] || 0;
+        return msgs.filter(m => m.timestamp > lastViewed).length;
+    }, [state.messages, state.channelLastViewed]);
+
+    const isChannelUnread = useCallback((channelId) => {
+        return getUnreadCount(channelId) > 0;
+    }, [getUnreadCount]);
+
     // ── Context Value ──
     const value = {
         ...state,
@@ -753,9 +1092,18 @@ TASK: First specific task description`;
         addMessage,
         addTask,
         completeTask,
+        completeTaskWithProof,
+        completeTaskWithoutProof,
+        verifyScreenshot,
+        getVerificationResult,
         deleteTask,
         setPersistentWorkplace,
         buyApartmentItem,
+        setCompanyAlias,
+        updateAlias,
+        markChannelRead,
+        getUnreadCount,
+        isChannelUnread,
     };
 
     return (
