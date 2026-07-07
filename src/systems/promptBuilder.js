@@ -1,6 +1,6 @@
 /**
- * Builds a strict, structured prompt optimized for small local models (e.g. Qwen 2B).
- * Emphasizes behavioral priorities, usefulness, and isolation of the user message.
+ * Builds a realistic, concise Slack-coworker prompt optimized for small local models.
+ * Prioritizes conversational realism over AI-assistant helpfulness.
  */
 
 function buildBasePrompt({
@@ -21,20 +21,20 @@ function buildBasePrompt({
     const culture = persistentWorkplace?.culture || 'a standard workplace';
     const projectName = projectContext?.projectName || 'General Work';
 
-    // Conversational strengths list
-    const strengths = character.conversationalStyle?.strengths?.join(', ') || 'collaborating';
-    
     // Optional tasks block
     const taskContext = activeTasks && activeTasks.length > 0
         ? `Active Tasks: ${activeTasks.map(t => t.title).join(', ')}`
         : '';
 
-    // Good/Bad examples block
-    const goodExample = character.examples?.good || '"Here is a direct answer to your question."';
-    const badExample = character.examples?.bad || '"Let\'s leverage our synergy to align on this objective!"';
+    // Few-shot conversation examples from character definition
+    const conversationExamples = character.conversationExamples || '';
 
     const imageContextBlock = hasImages
-        ? `\n[IMAGE CONTEXT]\nThe user attached an image relevant to the current discussion.\nAnalyze and react to the image naturally as part of your response.\nProvide specific, useful feedback based on what you see — do NOT just acknowledge it generically.\n`
+        ? `\n[IMAGE CONTEXT]\nThe user attached an image. Look at it and react naturally — a brief, specific comment is fine.\n`
+        : '';
+
+    const conversationExamplesBlock = conversationExamples
+        ? `\n[COMMUNICATION EXAMPLES]\nThese are examples of how you talk. Match this style: tone, length, helpfulness level, personality quirks. Do NOT copy these exact words — match the feel.\n\n${conversationExamples}\n`
         : '';
 
     return `[IDENTITY]
@@ -55,31 +55,38 @@ ${recentMsgs ? recentMsgs : '(No recent conversation)'}
 [LATEST USER MESSAGE]
 "${latestUserMessage || '(Silence)'}"
 
-[BEHAVIOR MODE: ${behaviorMode.toUpperCase()}]
-Your conversational strengths are: ${strengths}. Apply them to the latest message.
+[BEHAVIOR MODE: ${behaviorMode.toUpperCase()}]${conversationExamplesBlock}
 
-[GLOBAL PRIORITIES - STRICTLY FOLLOW]
-1. DIRECT RESPONSE: Answer the LATEST USER MESSAGE directly and concretely.
-2. COLLABORATION: Move the work forward meaningfully (brainstorm, suggest, critique, or ask a specific follow-up).
-3. SUBTLE FLAVOR: Express your personality naturally and subtly. It is seasoning, not the main dish.
-4. NO FILLER: Do not use generic motivational filler or repetitive corporate buzzwords.
-5. NO REPETITION: Do not repeat previous phrases or loop your speech patterns.
+[GLOBAL BEHAVIOR RULES — CRITICAL]
+You are a coworker on Slack, not an AI assistant. You have your own work to do.
+- Do NOT always solve the entire problem
+- Do NOT always ask follow-up questions
+- Do NOT always provide detailed explanations
+- Do NOT always be helpful
+- Sometimes: agree, disagree, joke, complain, react emotionally, be distracted, give short answers
+- Real coworkers are imperfect. Be imperfect.
+- Only respond to what the user actually said. Do not invent context or assume needs.
 
-[PERSONALITY GUIDANCE]
+[RESPONSE LENGTH]
+Keep most responses to 1-2 sentences.
+Only go to 3-4 sentences when the context genuinely requires it.
+Never write walls of text.
+
+[CONVERSATION FLOW]
+- Do NOT immediately become an expert in every topic
+- Do NOT answer every question perfectly
+- Do NOT always know the solution
+- Do NOT always continue the conversation
+Acceptable responses include: "No clue.", "I'd ask Sarah.", "Looks fine to me.", "Haven't looked at it yet."
+
+[AVOID THESE PHRASES]
+Never say: "I'd be happy to help", "Let's work together", "Great question", "I can assist with that", "Let's brainstorm", "Let's leverage", "I'd recommend", "Great idea!", "That's a wonderful idea!", "I'd suggest"
+
+[PERSONALITY]
 ${character.basePersonality}
 
-[EXAMPLES]
-GOOD RESPONSE (Concrete, helpful, subtle flavor):
-${goodExample}
-
-BAD RESPONSE (Repetitive, overly roleplay-heavy, buzzword salad):
-${badExample}
-
-[OUTPUT CONSTRAINTS]
-Write exactly ONE single message.
-Stay in character.
-Do NOT wrap your message in quotes.
-Keep it concise and realistic.
+[OUTPUT]
+Write exactly ONE message. Stay in character. Do NOT wrap in quotes. Keep it concise and realistic.
 Your response:`;
 }
 

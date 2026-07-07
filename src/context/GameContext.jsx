@@ -23,6 +23,9 @@ function createInitialState() {
         shiftDuration: 30, // minutes
         timeRemaining: 0,
         userGoal: '',
+        isPaused: false,
+        shiftTasksCompleted: 0, // tasks completed this shift
+        wagePenaltyUntil: null, // timestamp: penalty for clocking out without completing tasks
 
         // Progression
         rank: 'intern',
@@ -92,6 +95,7 @@ export function GameProvider({ children }) {
     const pendingVerificationsRef = useRef({}); // taskId -> { approved, confidence, reason, imageData, timestamp }
     const prevCompletedCountRef = useRef(0);
     const ensureTasksRef = useRef(null); // Will hold ensureMinimumTasks after creation
+    const shiftWasActiveRef = useRef(false);
 
     // ── Compute dynamic channels ──
     const generatedChannels = state.persistentWorkplace?.persistentChannels || [
@@ -140,6 +144,7 @@ export function GameProvider({ children }) {
                         companyAlias: data.companyAlias || '',
                         hasCompletedOnboarding: data.hasCompletedOnboarding || false,
                         channelLastViewed: data.channelLastViewed || {},
+                        wagePenaltyUntil: data.wagePenaltyUntil || null,
                     }));
                 } else {
                     setState(prev => ({
@@ -178,6 +183,7 @@ export function GameProvider({ children }) {
                     companyAlias: state.companyAlias,
                     hasCompletedOnboarding: state.hasCompletedOnboarding,
                     channelLastViewed: state.channelLastViewed,
+                    wagePenaltyUntil: state.wagePenaltyUntil,
                     score: state.netWorth
                 }, { merge: true });
             } catch (err) {
@@ -185,11 +191,11 @@ export function GameProvider({ children }) {
             }
         }, 2000);
         return () => clearTimeout(saveTimeoutRef.current);
-    }, [state.rank, state.bankBalance, state.netWorth, state.promotionPoints, state.streak, state.lastShiftDate, state.tasksCompletedTotal, state.workplaceVibe, state.persistentWorkplace, state.projectContext, state.apartmentItems, state.companyAlias, state.hasCompletedOnboarding, state.channelLastViewed, currentUser, isLoaded]);
+    }, [state.rank, state.bankBalance, state.netWorth, state.promotionPoints, state.streak, state.lastShiftDate, state.tasksCompletedTotal, state.workplaceVibe, state.persistentWorkplace, state.projectContext, state.apartmentItems, state.companyAlias, state.hasCompletedOnboarding, state.channelLastViewed, state.wagePenaltyUntil, currentUser, isLoaded]);
 
     // ── Shift Timer ──
     useEffect(() => {
-        if (!state.shiftActive) {
+        if (!state.shiftActive || state.isPaused) {
             if (timerRef.current) clearInterval(timerRef.current);
             return;
         }
@@ -214,7 +220,7 @@ export function GameProvider({ children }) {
 
     // ── Scheduled Events ──
     useEffect(() => {
-        if (!state.shiftActive) {
+        if (!state.shiftActive || state.isPaused) {
             eventTimersRef.current.forEach(t => clearTimeout(t));
             eventTimersRef.current = [];
             return;
@@ -235,7 +241,7 @@ export function GameProvider({ children }) {
 
     // ── Random Events (check every 60s) ──
     useEffect(() => {
-        if (!state.shiftActive) {
+        if (!state.shiftActive || state.isPaused) {
             if (randomEventRef.current) clearInterval(randomEventRef.current);
             return;
         }
@@ -340,8 +346,11 @@ export function GameProvider({ children }) {
 
         const hasImages = images.length > 0;
 
+        // If paused, skip AI responses but still show user message
+        const skipAI = state.isPaused;
+
         // If DM, trigger AI response
-        if (channelId.startsWith('dm_')) {
+        if (channelId.startsWith('dm_') && !skipAI) {
             const characterId = channelId.replace('dm_', '');
             const character = getCharacterById(characterId);
             if (character && !isGeneratingRef.current) {
@@ -395,7 +404,7 @@ export function GameProvider({ children }) {
         }
 
         // If team-chat or general, coworker chimes in after a longer random delay
-        if (!channelId.startsWith('dm_') && !isGeneratingRef.current) {
+        if (!channelId.startsWith('dm_') && !isGeneratingRef.current && !skipAI) {
             const randomCoworker = ALL_CHARACTERS[Math.floor(Math.random() * ALL_CHARACTERS.length)];
             setTimeout(() => {
                 triggerEvent({
@@ -464,6 +473,7 @@ export function GameProvider({ children }) {
                 coworkerStates: updatedCoworkerStates,
                 projectContext: newProjectContext,
                 hasCompletedOnboarding: true,
+                shiftTasksCompleted: 0, // reset for new shift
             };
         });
 
@@ -512,6 +522,8 @@ export function GameProvider({ children }) {
         const managerRole = state.persistentWorkplace?.baselineRoles?.manager_davis;
         const managerChar = getCharacterById('manager_davis');
         
+        let allNewTasks = [];
+
         try {
             const prompt = `You are Patricia Davis, the manager. The user just clocked in with the goal: "${goal}".
 Give a short 1-2 sentence welcome message acknowledging their goal, and assign them their FIRST specific task to get started.
@@ -541,16 +553,39 @@ TASK: First specific task description`;
                 type: 'coworker',
             });
 
-            // Automatically add the first task
-            const task = {
+            // Build the first task
+            allNewTasks.push({
                 id: Date.now() + Math.random(),
                 title: taskText,
                 difficulty: 1,
                 category: 'general',
                 completed: false,
                 createdAt: Date.now(),
-            };
-            setState(prev => ({ ...prev, tasks: [...prev.tasks, task] }));
+            });
+
+            // Generate 2 additional tasks immediately to reach exactly 3 total
+            try {
+                const extraTasks = await generateTasks(2, {
+                    userGoal: goal,
+                    completedTasks: [],
+                    activeTasks: [taskText],
+                    projectContext: newProjectContext,
+                });
+                for (const t of extraTasks) {
+                    if (!allNewTasks.some(existing => existing.title === t.title)) {
+                        allNewTasks.push({
+                            id: Date.now() + Math.random(),
+                            title: t.title,
+                            difficulty: Math.min(5, Math.max(1, t.difficulty)),
+                            category: t.category || 'general',
+                            completed: false,
+                            createdAt: Date.now(),
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to generate extra tasks:", e);
+            }
 
         } catch (err) {
             console.error("Failed to generate start task:", err);
@@ -562,23 +597,37 @@ TASK: First specific task description`;
                 senderRole: managerRole?.title || 'Manager',
                 type: 'coworker',
             });
-            const task = {
+            allNewTasks.push({
                 id: Date.now() + Math.random(),
                 title: `Get started on: ${goal}`,
                 difficulty: 1,
                 category: 'general',
                 completed: false,
                 createdAt: Date.now(),
-            };
-            setState(prev => ({ ...prev, tasks: [...prev.tasks, task] }));
+            });
         }
 
-        // Ensure we reach minimum 3 active tasks after clock-in
-        // The initial task + generated top-ups (uses ref to avoid TDZ with const)
-        if (ensureTasksRef.current) {
-            ensureTasksRef.current();
+        // Add ALL tasks in a SINGLE atomic setState — no races, no refs, exactly 3 tasks
+        if (allNewTasks.length > 0) {
+            setState(prev => ({ ...prev, tasks: [...prev.tasks, ...allNewTasks] }));
         }
-        
+
+        // Announce extra tasks beyond the first (the welcome message already covers task #1)
+        if (allNewTasks.length > 1) {
+            setTimeout(() => {
+                const welcomeChannel = generatedChannels[0]?.id || 'general';
+                const managerMsg = getRandomManagerMessage();
+                addMessage(welcomeChannel, {
+                    text: `${managerMsg} New tasks added.`,
+                    senderId: 'manager_davis',
+                    senderName: 'Patricia Davis',
+                    senderAvatar: managerRole?.emoji || '👩‍💼',
+                    senderRole: managerRole?.title || 'Manager',
+                    type: 'coworker',
+                });
+            }, 2000);
+        }
+
         setIsClockingIn(false);
     }, [addMessage, generatedChannels, state.persistentWorkplace, state.projectContext, state.lastShiftDate, state.apartmentItems, state.bankBalance]);
 
@@ -657,9 +706,17 @@ TASK: First specific task description`;
             }
 
             // Calculate salary earned this shift
+            const didCompleteTasks = prev.shiftTasksCompleted > 0;
+            const inPenalty = (prev.wagePenaltyUntil || 0) > Date.now();
             const rank = getRankById(prev.rank);
             const streakBonus = 1 + (prev.streak * 0.1);
-            const shiftSalary = Math.floor(rank.salary * streakBonus * (prev.shiftDuration / 60));
+            let shiftSalary = 0;
+            if (didCompleteTasks) {
+                shiftSalary = Math.floor(rank.salary * streakBonus * (prev.shiftDuration / 60));
+                if (inPenalty) {
+                    shiftSalary = Math.floor(shiftSalary * 0.85);
+                }
+            }
 
             // Promotion Logic
             let newRankId = prev.rank;
@@ -707,6 +764,23 @@ TASK: First specific task description`;
         });
     }, [addMessage, generatedChannels, state.persistentWorkplace, currentUser]);
 
+    // ── Apply wage penalty (called from Sidebar confirm dialog) ──
+    const applyPenalty = useCallback(() => {
+        const penaltyUntil = Date.now() + 7 * 24 * 60 * 60 * 1000;
+        setState(prev => ({
+            ...prev,
+            wagePenaltyUntil: penaltyUntil,
+        }));
+        const defaultChannel = generatedChannels[0]?.id || 'general';
+        addMessage(defaultChannel, {
+            text: `⚠️ Warning: You clocked out without completing any tasks. A 15% salary penalty has been applied to all shifts for the next 7 days.`,
+            senderId: 'system',
+            senderName: 'System',
+            senderAvatar: '🏢',
+            type: 'system',
+        });
+    }, [addMessage, generatedChannels]);
+
     // ── Task Management ──
     const addTask = useCallback((title, difficulty = 1, category = 'general') => {
         const task = {
@@ -737,6 +811,7 @@ TASK: First specific task description`;
                 bankBalance: prev.bankBalance + salaryEarned,
                 netWorth: prev.netWorth + salaryEarned,
                 tasksCompletedTotal: prev.tasksCompletedTotal + 1,
+                shiftTasksCompleted: prev.shiftTasksCompleted + 1,
             };
         });
     }, []);
@@ -828,7 +903,7 @@ TASK: First specific task description`;
 
     // ── Safety net: ensure minimum tasks whenever a task is completed ──
     useEffect(() => {
-        if (!state.shiftActive) return;
+        if (!state.shiftActive || state.isPaused) return;
         const completedCount = state.tasks.filter(t => t.completed).length;
         if (completedCount > prevCompletedCountRef.current) {
             ensureMinimumTasks();
@@ -1053,6 +1128,11 @@ Keep your response concise, realistic, and direct.`;
         });
     }, []);
 
+    // ── Pause / Resume ──
+    const togglePause = useCallback(() => {
+        setState(prev => ({ ...prev, isPaused: !prev.isPaused }));
+    }, []);
+
     // ── Unread Tracking ──
     const markChannelRead = useCallback((channelId) => {
         setState(prev => ({
@@ -1088,6 +1168,7 @@ Keep your response concise, realistic, and direct.`;
         // Actions
         clockIn,
         endShift,
+        applyPenalty,
         sendMessage,
         addMessage,
         addTask,
@@ -1104,6 +1185,7 @@ Keep your response concise, realistic, and direct.`;
         markChannelRead,
         getUnreadCount,
         isChannelUnread,
+        togglePause,
     };
 
     return (

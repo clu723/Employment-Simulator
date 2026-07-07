@@ -1,20 +1,26 @@
 import React, { useState } from 'react';
-import { Hash, Volume2, ChevronDown, ChevronRight, MessageSquare, ListTodo, Home, User, Clock, LogOut, Play, Square, Flame, Settings, Trophy } from 'lucide-react';
+import { Hash, Volume2, ChevronDown, ChevronRight, MessageSquare, ListTodo, Home, User, Clock, LogOut, Play, Pause, Square, Flame, Settings, Trophy } from 'lucide-react';
 import { useGame } from '../../context/GameContext';
 import { useAuth } from '../../context/AuthContext';
 import { ALL_CHARACTERS } from '../../data/coworkerTemplates';
 import { getRankById } from '../../utils/levels';
 import { formatTime, formatMoney } from '../../utils/formatters';
 import Avatar from '../shared/Avatar';
+import ConfirmDialog from '../shared/ConfirmDialog';
 
 export default function Sidebar({ onNavigate, currentView }) {
-    const { channels, activeChannel, setActiveChannel, shiftActive, clockIn, endShift, timeRemaining, bankBalance, rank, streak, coworkerStates, persistentWorkplace, isClockingIn, companyAlias, markChannelRead, isChannelUnread, getUnreadCount } = useGame();
+    const { channels, activeChannel, setActiveChannel, shiftActive, clockIn, endShift, applyPenalty, timeRemaining, bankBalance, rank, streak, coworkerStates, persistentWorkplace, isClockingIn, companyAlias, markChannelRead, isChannelUnread, getUnreadCount, isPaused, togglePause, shiftTasksCompleted } = useGame();
     const { logout } = useAuth();
     const [channelsOpen, setChannelsOpen] = useState(true);
     const [dmsOpen, setDmsOpen] = useState(true);
     const [showClockIn, setShowClockIn] = useState(false);
     const [clockInGoal, setClockInGoal] = useState('');
     const [clockInDuration, setClockInDuration] = useState(30);
+
+    // Confirm dialog states
+    const [showClockOutConfirm, setShowClockOutConfirm] = useState(false);
+    const [showClockOutWarning, setShowClockOutWarning] = useState(false);
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
     const regularChannels = channels.filter(c => c.type === 'channel');
     const dmChannels = channels.filter(c => c.type === 'dm');
@@ -41,7 +47,7 @@ export default function Sidebar({ onNavigate, currentView }) {
             {/* Company Header */}
             <div className="px-4 h-14 flex items-center justify-between border-b border-white/5 shrink-0">
                 <h1 className="text-[15px] font-bold text-white tracking-tight">{companyName}</h1>
-                <button onClick={logout} className="p-1.5 text-gray-500 hover:text-gray-300 hover:bg-white/5 rounded-lg transition-colors" title="Logout">
+                <button onClick={() => setShowLogoutConfirm(true)} className="p-1.5 text-gray-500 hover:text-gray-300 hover:bg-white/5 rounded-lg transition-colors" title="Logout">
                     <LogOut size={16} />
                 </button>
             </div>
@@ -62,12 +68,31 @@ export default function Sidebar({ onNavigate, currentView }) {
                                 <Flame size={10} /> {streak} day streak
                             </div>
                         )}
-                        <button
-                            onClick={endShift}
-                            className="w-full flex items-center justify-center gap-2 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-medium rounded-lg border border-red-500/10 transition-colors"
-                        >
-                            <Square size={12} /> Clock Out
-                        </button>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={togglePause}
+                                className={`flex-1 flex items-center justify-center gap-2 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                                    isPaused
+                                        ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/20 hover:bg-yellow-500/30'
+                                        : 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10'
+                                }`}
+                            >
+                                {isPaused ? <Play size={12} /> : <Pause size={12} />}
+                                {isPaused ? 'Resume' : 'Pause'}
+                            </button>
+                            <button
+                                onClick={() => {
+                                    if (shiftTasksCompleted > 0) {
+                                        setShowClockOutConfirm(true);
+                                    } else {
+                                        setShowClockOutWarning(true);
+                                    }
+                                }}
+                                className="flex-1 flex items-center justify-center gap-2 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-medium rounded-lg border border-red-500/10 transition-colors"
+                            >
+                                <Square size={12} /> Clock Out
+                            </button>
+                        </div>
                     </div>
                 ) : showClockIn ? (
                     <form onSubmit={handleClockIn} className="space-y-2">
@@ -241,6 +266,55 @@ export default function Sidebar({ onNavigate, currentView }) {
                     <span className="text-xs font-mono font-bold text-green-400">{formatMoney(bankBalance)}</span>
                 </div>
             </div>
+
+            {/* ── Confirm Dialogs ── */}
+
+            {/* Clock Out (tasks completed) */}
+            <ConfirmDialog
+                isOpen={showClockOutConfirm}
+                onClose={() => setShowClockOutConfirm(false)}
+                title="End Shift"
+                message="You have completed tasks this shift. Are you sure you want to clock out now?"
+                confirmText="Clock Out"
+                cancelText="Keep Working"
+                onConfirm={() => {
+                    setShowClockOutConfirm(false);
+                    endShift();
+                }}
+                variant="info"
+            />
+
+            {/* Clock Out Warning (no tasks completed — penalty) */}
+            <ConfirmDialog
+                isOpen={showClockOutWarning}
+                onClose={() => setShowClockOutWarning(false)}
+                title="⚠️ End Shift Without Completing Tasks?"
+                message="You haven't completed any tasks this shift. If you clock out now, a 15% salary penalty will be applied to ALL shifts for the next 7 days. Are you sure you want to proceed?"
+                confirmText="Clock Out Anyway"
+                cancelText="Keep Working"
+                onConfirm={() => {
+                    setShowClockOutWarning(false);
+                    applyPenalty();
+                    endShift();
+                }}
+                variant="danger"
+            />
+
+            {/* Logout Confirm */}
+            <ConfirmDialog
+                isOpen={showLogoutConfirm}
+                onClose={() => setShowLogoutConfirm(false)}
+                title="Log Out"
+                message="Are you sure you want to log out? Your progress will be saved."
+                confirmText="Log Out"
+                cancelText="Cancel"
+                onConfirm={() => {
+                    setShowLogoutConfirm(false);
+                    logout();
+                }}
+                variant="warning"
+                icon={LogOut}
+            />
         </aside>
     );
 }
