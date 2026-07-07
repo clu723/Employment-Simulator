@@ -96,6 +96,8 @@ export function GameProvider({ children }) {
     const prevCompletedCountRef = useRef(0);
     const ensureTasksRef = useRef(null); // Will hold ensureMinimumTasks after creation
     const shiftWasActiveRef = useRef(false);
+    const activeChannelRef = useRef(activeChannel);
+    activeChannelRef.current = activeChannel;
 
     // ── Compute dynamic channels ──
     const generatedChannels = state.persistentWorkplace?.persistentChannels || [
@@ -266,13 +268,24 @@ export function GameProvider({ children }) {
             timestamp: Date.now(),
             ...msg,
         };
-        setState(prev => ({
-            ...prev,
-            messages: {
-                ...prev.messages,
-                [channelId]: [...(prev.messages[channelId] || []), message],
-            },
-        }));
+        setState(prev => {
+            // Auto-mark as read if message arrives on the currently active channel
+            const isActiveChannel = channelId === activeChannelRef.current;
+            const update = {
+                ...prev,
+                messages: {
+                    ...prev.messages,
+                    [channelId]: [...(prev.messages[channelId] || []), message],
+                },
+            };
+            if (isActiveChannel) {
+                update.channelLastViewed = {
+                    ...prev.channelLastViewed,
+                    [channelId]: Date.now(),
+                };
+            }
+            return update;
+        });
     }, []);
 
     // ── Trigger an AI event ──
@@ -361,7 +374,10 @@ export function GameProvider({ children }) {
                 try {
                     const coworkerState = state.coworkerStates[character.id] || {};
                     const recentMsgs = (state.messages[channelId] || []).slice(-5)
-                        .map(m => `${m.senderName}: ${m.text}`).join('\n');
+                        .map(m => {
+                            const imgHint = m.images && m.images.length > 0 ? ' [sent an image]' : '';
+                            return `${m.senderName}: ${m.text || ''}${imgHint}`;
+                        }).join('\n');
 
                     const activeTasks = state.tasks.filter(t => !t.completed).slice(0, 3);
                     
@@ -373,7 +389,7 @@ export function GameProvider({ children }) {
                         recentMsgs,
                         userGoal: state.userGoal,
                         activeTasks,
-                        latestUserMessage: text,
+                        latestUserMessage: text || (images.length > 0 ? '[User sent an image]' : ''),
                         behaviorMode: 'direct_collaboration',
                         hasImages
                     });
