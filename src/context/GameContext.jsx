@@ -209,7 +209,7 @@ export function GameProvider({ children }) {
             });
         }, 1000);
         return () => clearInterval(timerRef.current);
-    }, [state.shiftActive]);
+    }, [state.shiftActive, state.isPaused]);
 
     // ── End shift when timer runs out ──
     useEffect(() => {
@@ -237,7 +237,7 @@ export function GameProvider({ children }) {
             eventTimersRef.current.forEach(t => clearTimeout(t));
             eventTimersRef.current = [];
         };
-    }, [state.shiftActive, state.shiftStartTime]);
+    }, [state.shiftActive, state.shiftStartTime, state.isPaused]);
 
     // ── Random Events (check every 60s) ──
     useEffect(() => {
@@ -257,7 +257,7 @@ export function GameProvider({ children }) {
             }
         }, 60_000);
         return () => clearInterval(randomEventRef.current);
-    }, [state.shiftActive]);
+    }, [state.shiftActive, state.isPaused]);
 
     // ── Add a message to a channel ──
     const addMessage = useCallback((channelId, msg) => {
@@ -418,7 +418,7 @@ export function GameProvider({ children }) {
                 });
             }, 5000 + Math.random() * 25000);
         }
-    }, [currentUser, state.coworkerStates, state.messages, state.tasks, state.userGoal, state.companyAlias, state.persistentWorkplace, state.projectContext, addMessage, triggerEvent]);
+    }, [currentUser, state.coworkerStates, state.messages, state.tasks, state.userGoal, state.companyAlias, state.persistentWorkplace, state.projectContext, state.isPaused, addMessage, triggerEvent]);
 
     const clockIn = useCallback(async (goal, duration) => {
         setIsClockingIn(true);
@@ -525,8 +525,8 @@ export function GameProvider({ children }) {
         let allNewTasks = [];
 
         try {
-            const prompt = `You are Patricia Davis, the manager. The user just clocked in with the goal: "${goal}".
-Give a short 1-2 sentence welcome message acknowledging their goal, and assign them their FIRST specific task to get started.
+            const prompt = `You are Patricia Davis, the manager. The user just clocked in.
+Give a short 1-2 sentence welcome message, and assign them their FIRST specific task to get started.
 Format your response exactly like this:
 Welcome Message
 TASK: First specific task description`;
@@ -616,9 +616,8 @@ TASK: First specific task description`;
         if (allNewTasks.length > 1) {
             setTimeout(() => {
                 const welcomeChannel = generatedChannels[0]?.id || 'general';
-                const managerMsg = getRandomManagerMessage();
                 addMessage(welcomeChannel, {
-                    text: `${managerMsg} New tasks added.`,
+                    text: `Here are a few tasks to get you started.`,
                     senderId: 'manager_davis',
                     senderName: 'Patricia Davis',
                     senderAvatar: managerRole?.emoji || '👩‍💼',
@@ -733,6 +732,7 @@ TASK: First specific task description`;
                 ...prev,
                 shiftActive: false,
                 timeRemaining: 0,
+                tasks: [], // clear all tasks from this shift
                 bankBalance: prev.bankBalance + shiftSalary,
                 netWorth: prev.netWorth + shiftSalary,
                 rank: newRankId,
