@@ -6,7 +6,7 @@ const LOADING_MESSAGES = [
     "Connecting to secure workplace server...",
     "Coworkers are joining the virtual workspace...",
     "Manager is preparing today's tasks...",
-    "Syncing company Slack channels & databases...",
+    "Syncing company channels & databases...",
     "Retrieving project files and requirements...",
     "Applying local environment configurations...",
     "Almost ready..."

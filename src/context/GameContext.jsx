@@ -85,7 +85,9 @@ export function GameProvider({ children }) {
     const [isLoaded, setIsLoaded] = useState(false);
     const [isClockingIn, setIsClockingIn] = useState(false);
     const [typingCharacter, setTypingCharacter] = useState(null);
+    const replyDepthRef = useRef(0);
     const timerRef = useRef(null);
+    const pauseStartRef = useRef(null);
     const eventTimersRef = useRef([]);
     const randomEventRef = useRef(null);
     const isGeneratingRef = useRef(false);
@@ -195,21 +197,26 @@ export function GameProvider({ children }) {
         return () => clearTimeout(saveTimeoutRef.current);
     }, [state.rank, state.bankBalance, state.netWorth, state.promotionPoints, state.streak, state.lastShiftDate, state.tasksCompletedTotal, state.workplaceVibe, state.persistentWorkplace, state.projectContext, state.apartmentItems, state.companyAlias, state.hasCompletedOnboarding, state.channelLastViewed, state.wagePenaltyUntil, currentUser, isLoaded]);
 
-    // ── Shift Timer ──
+    // ── Shift Timer (wall-clock based — survives browser tab throttling) ──
     useEffect(() => {
         if (!state.shiftActive || state.isPaused) {
             if (timerRef.current) clearInterval(timerRef.current);
             return;
         }
-        timerRef.current = setInterval(() => {
+        const tick = () => {
             setState(prev => {
-                const remaining = prev.timeRemaining - 1;
+                const elapsed = Math.floor((Date.now() - prev.shiftStartTime) / 1000);
+                const totalSeconds = prev.shiftDuration * 60;
+                const remaining = Math.max(0, totalSeconds - elapsed);
                 if (remaining <= 0) {
-                    return { ...prev, timeRemaining: 0, shiftActive: false };
+                    // Don't set shiftActive: false here — let endShift() handle it
+                    return { ...prev, timeRemaining: 0 };
                 }
                 return { ...prev, timeRemaining: remaining };
             });
-        }, 1000);
+        };
+        tick(); // immediate first tick
+        timerRef.current = setInterval(tick, 1000);
         return () => clearInterval(timerRef.current);
     }, [state.shiftActive, state.isPaused]);
 
@@ -337,6 +344,26 @@ export function GameProvider({ children }) {
                     senderRole: roleInfo.title,
                     type: 'coworker',
                 });
+
+                // Coworker-to-coworker reply chain (team channels only, max 1 deep)
+                if (!channelId.startsWith('dm_') && replyDepthRef.current < 1 && Math.random() < 0.3) {
+                    const others = ALL_CHARACTERS.filter(c => c.id !== character.id);
+                    if (others.length > 0) {
+                        const replier = others[Math.floor(Math.random() * others.length)];
+                        replyDepthRef.current++;
+                        setTimeout(() => {
+                            triggerEvent({
+                                id: 'coworker_reply',
+                                channel: channelId,
+                                selectedParticipant: replier.id,
+                                behaviorMode: 'casual_reply',
+                                promptContext: `${character.name} just said: "${text}". React naturally — answer their question or add your own thought. Keep it brief.`,
+                            });
+                            // Reset depth after the reply completes
+                            setTimeout(() => { replyDepthRef.current = 0; }, 15000);
+                        }, 3000 + Math.random() * 5000);
+                    }
+                }
             }
         } catch (err) {
             console.error(`Event ${event.id} failed:`, err);
@@ -1144,9 +1171,24 @@ Keep your response concise, realistic, and direct.`;
         });
     }, []);
 
-    // ── Pause / Resume ──
+    // ── Pause / Resume (compensates wall-clock timer) ──
     const togglePause = useCallback(() => {
-        setState(prev => ({ ...prev, isPaused: !prev.isPaused }));
+        setState(prev => {
+            if (prev.isPaused) {
+                // Resuming: add paused duration to shiftStartTime so wall-clock calc stays correct
+                const pauseDuration = pauseStartRef.current ? Date.now() - pauseStartRef.current : 0;
+                pauseStartRef.current = null;
+                return {
+                    ...prev,
+                    isPaused: false,
+                    shiftStartTime: prev.shiftStartTime + pauseDuration,
+                };
+            } else {
+                // Pausing: record when pause began
+                pauseStartRef.current = Date.now();
+                return { ...prev, isPaused: true };
+            }
+        });
     }, []);
 
     // ── Unread Tracking ──
