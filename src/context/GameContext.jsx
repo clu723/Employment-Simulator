@@ -88,6 +88,7 @@ export function GameProvider({ children }) {
     const replyDepthRef = useRef(0);
     const timerRef = useRef(null);
     const pauseStartRef = useRef(null);
+    const totalPausedMsRef = useRef(0);
     const eventTimersRef = useRef([]);
     const randomEventRef = useRef(null);
     const isGeneratingRef = useRef(false);
@@ -205,7 +206,7 @@ export function GameProvider({ children }) {
         }
         const tick = () => {
             setState(prev => {
-                const elapsed = Math.floor((Date.now() - prev.shiftStartTime) / 1000);
+                const elapsed = Math.floor((Date.now() - prev.shiftStartTime - totalPausedMsRef.current) / 1000);
                 const totalSeconds = prev.shiftDuration * 60;
                 const remaining = Math.max(0, totalSeconds - elapsed);
                 if (remaining <= 0) {
@@ -465,6 +466,7 @@ export function GameProvider({ children }) {
 
     const clockIn = useCallback(async (goal, duration) => {
         setIsClockingIn(true);
+        totalPausedMsRef.current = 0; // reset accumulated pause time for new shift
         const now = Date.now();
         const today = new Date().toDateString();
         
@@ -1171,18 +1173,15 @@ Keep your response concise, realistic, and direct.`;
         });
     }, []);
 
-    // ── Pause / Resume (compensates wall-clock timer) ──
+    // ── Pause / Resume (accumulates paused time in ref; shiftStartTime is never mutated) ──
     const togglePause = useCallback(() => {
         setState(prev => {
             if (prev.isPaused) {
-                // Resuming: add paused duration to shiftStartTime so wall-clock calc stays correct
+                // Resuming: accumulate the paused duration, let the timer tick recompute
                 const pauseDuration = pauseStartRef.current ? Date.now() - pauseStartRef.current : 0;
                 pauseStartRef.current = null;
-                return {
-                    ...prev,
-                    isPaused: false,
-                    shiftStartTime: prev.shiftStartTime + pauseDuration,
-                };
+                totalPausedMsRef.current += pauseDuration;
+                return { ...prev, isPaused: false };
             } else {
                 // Pausing: record when pause began
                 pauseStartRef.current = Date.now();

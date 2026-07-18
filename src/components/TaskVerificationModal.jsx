@@ -83,7 +83,8 @@ const TaskVerificationModal = ({ task, isOpen, onClose, onVerify, onBypass, onCo
 
         try {
             setStatus('checking');
-            setFeedbackText('Re-evaluating submission...');
+            const isResubmit = approvalResult !== null;
+            setFeedbackText(isResubmit ? 'Re-evaluating submission...' : 'Evaluating submission...');
             setApprovalResult(null);
             setErrorMsg('');
 
@@ -205,7 +206,7 @@ const TaskVerificationModal = ({ task, isOpen, onClose, onVerify, onBypass, onCo
                                         {status === 'checking' && (
                                             <div className="flex flex-col items-center text-blue-400">
                                                 <Loader2 className="animate-spin mb-2" size={24} />
-                                                <span className="text-sm font-medium">Re-evaluating submission...</span>
+                                                <span className="text-sm font-medium">{feedbackText}</span>
                                             </div>
                                         )}
                                         {status === 'approved' && (
@@ -293,7 +294,7 @@ const TaskVerificationModal = ({ task, isOpen, onClose, onVerify, onBypass, onCo
                                             Cancel
                                         </button>
                                     )}
-                                    {file && status !== 'checking' && status !== 'completing' && (
+                                    {file && status !== 'checking' && status !== 'completing' && !hasResult && (
                                         <button
                                             onClick={handleSubmit}
                                             className="flex-[2] bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-colors flex items-center justify-center gap-2 text-sm"
